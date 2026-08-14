@@ -1,0 +1,120 @@
+# Changelog
+
+## 1.0.0
+- Fullscreen dark-mode workplace dashboard
+- Vance/Tuscaloosa/Birmingham default weather strip
+- Cached road map with pan and zoom
+- RainViewer weather-radar overlay
+- NWS severe-weather alerts and GeoJSON map polygons
+- TomTom live traffic-flow overlay when an API key is supplied
+- TomTom traffic-aware route travel times for three configurable routes
+- Six configurable information blocks
+- Rotating image media block
+- Optional facility title and scrolling announcement ticker
+- Settings-only application exit
+- Local configuration/cache/media storage
+- Resilient refresh behavior that retains last successful data
+- Java 21 dependency-free build and launcher scripts for macOS/Linux/Windows
+
+## 1.0.1
+- Fixed RainViewer radar tiles displaying “Zoom Level Not Supported” when the base map zoom exceeded RainViewer's maximum z=7.
+- Higher map zooms now crop/upscale the correct z=7 radar parent tile while preserving road-map detail.
+
+## 1.0.2
+- Increased separation between the three top forecast cards and gave forecast cards a distinct secondary surface in light and dark themes.
+- Switched RainViewer radar requests from 256px to 512px tiles for higher visual resolution.
+- Added bilinear radar scaling above RainViewer zoom 7 to reduce blocky/pixelated enlargement while preserving detailed road-map zoom.
+
+## 1.1.0
+- Reworked the dashboard visual system to match the polished operations-display concept.
+- Standardized 14px spacing between header, forecasts, map, widgets, and ticker.
+- Added consistent rounded outlines to cards in both light and dark mode.
+- Added built-in vector weather icons to location forecasts and current-weather widgets.
+- Added built-in route, severe-alert, wind, forecast, media, and system-status icons.
+- Improved route cards with traffic-severity status coloring.
+- Refined typography hierarchy and card padding for large TV readability.
+- Adjusted map/widget split so information blocks have a more balanced, uniform footprint.
+- Refined light and dark palettes while preserving existing API, radar, traffic, settings, and caching behavior.
+
+## 1.2.0
+- Added an unlimited pinned-location editor in Settings.
+- Added Hoover and Trussville to the fresh-install Vance configuration.
+- Pinned locations automatically appear on the map and become selectable weather widgets.
+- Replaced the fixed three-route settings form with an unlimited route table.
+- Added a one-click “Route from selected pin” workflow.
+- Dashboard widget choices are now generated from current pinned locations and routes.
+- Added selectable 6, 8, 10, or 12 information blocks beside the map.
+- Ten/twelve-block layouts use a three-column adaptive grid for large TV displays.
+- Forecast cards wrap after five columns so large location lists remain readable.
+- Existing configuration files migrate forward; current TomTom/API settings remain external to the JAR.
+
+## 1.2.1
+- Removed the interactive JSplitPane divider between the map and information blocks.
+- Eliminated the small divider/resize control that could accidentally shrink the map or enlarge the cards.
+- Replaced the split pane with a responsive fixed 63/37 GridBagLayout.
+- The dashboard still scales with fullscreen/window size, but the map-to-card ratio can no longer be manually dragged.
+
+## 1.2.2
+- Fixed the map shrinking after the dashboard completed its Swing layout pass.
+- Replaced GridBagLayout for the map/card regions with a deterministic FixedRatioLayout.
+- The map now permanently receives 63% of available dashboard width and cards receive 37%.
+- Card preferred/minimum sizes can no longer force the map narrower after startup.
+- Removed all interactive or implicit map/card resizing behavior while preserving normal fullscreen/window scaling.
+
+## 1.3.0
+- Added controlled map/information resizing in Settings > Dashboard Blocks.
+- Added a 55%–75% map-width slider with a locked complementary information-panel percentage.
+- Added one-click Information Focused (55/45), Balanced (63/37), and Map Focused (70/30) presets.
+- The chosen ratio is saved in the site configuration and restored on every launch.
+- Save & Apply immediately rebuilds the dashboard at the selected ratio.
+- Normal dashboard operation remains non-draggable, preventing accidental TV-layout changes.
+
+## 1.3.1
+- Added quick refresh-rate controls under Settings > Data & APIs.
+- Route/traffic refresh can now be set to 2, 5, 10, 15, 20, or 30 minutes.
+- Weather refresh can be set to 5, 10, 15, 20, 30, or 60 minutes.
+- Radar refresh can be set to 2, 5, 10, or 15 minutes.
+- NWS alert refresh can be set to 1, 2, 5, 10, or 15 minutes.
+- Save & Apply now cancels and recreates background scheduler jobs immediately.
+- Refresh-rate changes no longer require an application restart.
+- Existing custom interval values are preserved and shown even if they are not one of the standard presets.
+
+## 1.3.2
+- Added persistent Live Severe Weather Mode under Settings > Data & APIs.
+- Live mode refreshes NWS alerts every 1 minute.
+- Live mode refreshes radar every 2 minutes.
+- Live mode refreshes current weather every 2 minutes.
+- TomTom traffic/routing remains on the normal user-selected interval to protect API usage.
+- Turning Live Severe Weather Mode off restores the normal weather/radar/alert refresh settings.
+- Save & Apply switches between live and normal scheduler intervals immediately without restarting.
+
+## 1.4.0
+- Added Automatic Severe Weather Mode.
+- Added a separate checkbox to enable/disable automatic triggering.
+- Added an Auto Return checkbox, enabled by default, to return to normal refresh rates after qualifying severe alerts clear.
+- Automatic mode triggers for Tornado Warning/Watch, Tornado Emergency, Severe Thunderstorm Warning/Watch, Flash Flood Warning, Extreme Wind Warning, and NWS alerts classified as Extreme.
+- Automatic live polling uses 1-minute NWS alerts plus 2-minute radar and current-weather checks.
+- TomTom traffic/routing remains on its normal selected interval.
+- Manual Live Severe Weather Mode remains independent and always overrides normal polling while selected.
+- System Status now displays NORMAL, MANUAL LIVE, or AUTO LIVE and shows the triggering alert when available.
+
+## 1.5.0
+- Converted the large map region into a configurable Main Showcase.
+- Added Settings > Main Showcase.
+- Main Showcase can remain map-only or cycle between the live map and announcement images.
+- Added configurable 10-second through 5-minute showcase intervals.
+- Main Showcase uses PNG/JPG/JPEG/GIF files from the configured media folder.
+- Added Severe Weather Map Priority, enabled by default.
+- AUTO LIVE severe-weather monitoring immediately forces the Main Showcase back to the map and pauses media rotation.
+- Media rotation resumes automatically after the automatic severe-weather state clears.
+- Severe Weather Map Priority can be disabled independently for troubleshooting/testing.
+- The smaller Media dashboard block remains independent from Main Showcase rotation.
+
+## 1.5.1
+- Removed media filenames from the Main Showcase.
+- Announcement images now use the full Main Showcase region without a filename/caption bar.
+- AUTO LIVE severe-weather mode now takes priority over the bottom ticker.
+- AUTO LIVE ticker text identifies the triggering NWS alert when available.
+- MANUAL LIVE mode also displays a distinct live-weather ticker status.
+- When live severe-weather mode clears, the normal configured ticker message returns automatically.
+- Ticker status refreshes immediately when severe-weather state changes.
