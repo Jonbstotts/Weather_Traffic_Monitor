@@ -17,12 +17,3 @@ The code is separated by responsibility so site settings and API providers can b
 The UI never directly performs network calls. Scheduled worker threads call provider services and publish results back to Swing on the Event Dispatch Thread. This keeps the display responsive during slow or unavailable network conditions.
 
 Site-specific locations, routes, title text, ticker text, visibility options and block assignments are loaded from `config.properties`; they are not hard-coded into dashboard rendering logic.
-
-## Celebration and overlay subsystem (v2.3.0)
-
-`CelebrationConfig` stores local recognition metadata. `MainShowcasePanel` checks the current local
-date and generates `CelebrationSlidePanel` cards only when birthdays or hire-date anniversaries
-match. It also rechecks date-driven content while the display remains running across midnight.
-
-`OverlayEffectsPanel` is installed as the dashboard glass pane and renders lightweight, non-interactive
-holiday/celebration particles. Severe-weather priority suppresses this layer immediately.
