@@ -33,6 +33,8 @@ public final class SettingsDialog extends JDialog {
     private final JCheckBox fullscreen=new JCheckBox("Fullscreen on startup");
     private final JComboBox<AppTheme> themeSelector=new JComboBox<>(AppTheme.values());
     private final JPanel themePreview=new JPanel();
+    private final JCheckBox automaticHolidayThemes=new JCheckBox(
+            "Automatically switch to holiday / seasonal themes");
     private final JCheckBox themeEffects=new JCheckBox("Enable theme overlay effects");
     private final JComboBox<String> overlayIntensity=new JComboBox<>(new String[]{"LOW","MEDIUM","HIGH"});
     private final JCheckBox radar=new JCheckBox("Show radar layer");
@@ -168,13 +170,21 @@ public final class SettingsDialog extends JDialog {
         themePreview.setPreferredSize(new Dimension(420,72));
         themePreview.setBorder(BorderFactory.createTitledBorder("Theme preview"));
         addFull(p,y++,themePreview);
+        addFull(p,y++,automaticHolidayThemes);
+
+        JLabel holidayStatus=new JLabel(
+                "<html>"+HolidayThemeService.automaticThemeDescription(LocalDate.now())
+              + ". Manual theme is used outside automatic holiday windows.</html>");
+        addFull(p,y++,holidayStatus);
+
         addFull(p,y++,themeEffects);
         addRow(p,y++,"Overlay intensity",overlayIntensity);
 
         JLabel overlayHelp=new JLabel(
-                "<html>Holiday themes can add lightweight effects such as snow, leaves, hearts, "
-              + "sparks, or seasonal particles. Automatic severe-weather map priority suppresses "
-              + "decorative overlays immediately.</html>");
+                "<html>Holiday themes can add polished effects such as Christmas snow/lights, "
+              + "Halloween fog/lights, Independence Day fireworks, Thanksgiving leaves, Valentine "
+              + "hearts, and St. Patrick’s shamrocks/gold glints. Automatic severe-weather map "
+              + "priority suppresses decorative overlays immediately.</html>");
         addFull(p,y++,overlayHelp);
 
         themeSelector.addActionListener(e->{
@@ -763,6 +773,7 @@ public final class SettingsDialog extends JDialog {
         fullscreen.setSelected(cfg.fullscreen);
         themeSelector.setSelectedItem(AppTheme.fromId(cfg.themeId));
         updateThemePreview();
+        automaticHolidayThemes.setSelected(cfg.automaticHolidayThemes);
         themeEffects.setSelected(cfg.themeOverlayEffects);
         overlayIntensity.setSelectedItem(cfg.overlayIntensity);
         radar.setSelected(cfg.showRadar);
@@ -1047,6 +1058,7 @@ public final class SettingsDialog extends JDialog {
             AppTheme selected=(AppTheme)themeSelector.getSelectedItem();
             if(selected==null) selected=AppTheme.DARK;
             cfg.themeId=selected.id();
+            cfg.automaticHolidayThemes=automaticHolidayThemes.isSelected();
             cfg.darkMode=selected.dark();
             cfg.themeOverlayEffects=themeEffects.isSelected();
             cfg.overlayIntensity=String.valueOf(overlayIntensity.getSelectedItem());

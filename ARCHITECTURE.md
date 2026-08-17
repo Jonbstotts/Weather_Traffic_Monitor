@@ -26,3 +26,14 @@ match. It also rechecks date-driven content while the display remains running ac
 
 `OverlayEffectsPanel` is installed as the dashboard glass pane and renders lightweight, non-interactive
 holiday/celebration particles. Severe-weather priority suppresses this layer immediately.
+
+## Automatic holiday theme resolution (v2.4.0)
+
+`HolidayThemeService` resolves the runtime `AppTheme` from the current local date when
+`automaticHolidayThemes` is enabled. The configured `themeId` remains the manual fallback and is
+never overwritten by automatic switching. `DashboardFrame` checks the effective theme during its
+existing media/date refresh path so long-running installations can transition at a date boundary
+without restarting.
+
+`OverlayEffectsPanel` continues to be the non-interactive glass-pane rendering layer, but holiday
+effects now use dedicated animation/painting logic rather than a shared particle presentation.

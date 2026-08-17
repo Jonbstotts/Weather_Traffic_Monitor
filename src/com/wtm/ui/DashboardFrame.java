@@ -69,6 +69,7 @@ public final class DashboardFrame extends JFrame {
     private volatile RadarFrame radarFrame;
     private volatile Instant lastSuccess;
     private final Map<Integer,Integer> mediaIndex = new ConcurrentHashMap<>();
+    private String appliedRuntimeThemeId="";
 
     public DashboardFrame(AppConfig config){
         super("Weather & Traffic Monitor"); this.config=config;
@@ -87,9 +88,13 @@ public final class DashboardFrame extends JFrame {
     }
 
     private void buildUi(){
-        // Generated showcase cards and overlays should use the selected palette
-        // from the moment they are constructed.
-        Theme.setActive(config.themeId);
+        // Resolve the saved manual theme against optional date-driven holiday
+        // switching before constructing any themed component.
+        AppTheme runtimeTheme=effectiveTheme();
+        Theme.setActive(runtimeTheme.id());
+        config.darkMode=runtimeTheme.dark();
+        appliedRuntimeThemeId=runtimeTheme.id();
+
         getContentPane().removeAll();
         final int gap=14;
         root=new JPanel(new BorderLayout(gap,gap));
@@ -119,7 +124,7 @@ public final class DashboardFrame extends JFrame {
 
         if(overlayEffects!=null){
             overlayEffects.configure(
-                    AppTheme.fromId(config.themeId),
+                    runtimeTheme,
                     config.themeOverlayEffects,
                     config.overlayIntensity
             );
@@ -749,6 +754,17 @@ public final class DashboardFrame extends JFrame {
     }
 
     private void refreshMedia(){
+        /*
+         * Media refresh already runs regularly on the Swing EDT, making it a
+         * convenient lightweight date-boundary check for automatic holiday
+         * themes. A changed effective theme rebuilds the UI once.
+         */
+        AppTheme nowTheme=effectiveTheme();
+        if(!nowTheme.id().equals(appliedRuntimeThemeId)){
+            buildUi();
+            return;
+        }
+
         if(mainShowcase!=null) mainShowcase.refreshDateDrivenContent();
         if(sidePanel==null)return;for(Component c:sidePanel.getComponents()){if(!(c instanceof JPanel p))continue;if(!"MEDIA".equals(((JComponent)p).getClientProperty("widgetType")))continue;int slot=(int)((JComponent)p).getClientProperty("slot");JLabel label=findMediaLabel(p);if(label==null)continue;File[] files=config.mediaDirectory.toFile().listFiles(f->{String n=f.getName().toLowerCase();return n.endsWith(".png")||n.endsWith(".jpg")||n.endsWith(".jpeg")||n.endsWith(".gif");});if(files==null||files.length==0){label.setIcon(null);label.setText("Place PNG/JPG/GIF files in\n"+config.mediaDirectory);continue;}Arrays.sort(files);int idx=mediaIndex.merge(slot,1,(a,b)->(a+b)%files.length)%files.length;try{ImageIcon raw=new ImageIcon(files[idx].getAbsolutePath());int w=Math.max(120,p.getWidth()-24),h=Math.max(80,p.getHeight()-45);Image scaled=raw.getImage().getScaledInstance(w,h,Image.SCALE_SMOOTH);label.setIcon(new ImageIcon(scaled));label.setText("");}catch(Exception ignored){}}}
 
@@ -770,7 +786,7 @@ public final class DashboardFrame extends JFrame {
         buildUi();
         if(overlayEffects!=null){
             overlayEffects.configure(
-                    AppTheme.fromId(c.themeId),
+                    effectiveTheme(),
                     c.themeOverlayEffects,
                     c.overlayIntensity
             );
@@ -783,9 +799,14 @@ public final class DashboardFrame extends JFrame {
 
         if(c.fullscreen) setExtendedState(JFrame.MAXIMIZED_BOTH);
     }
+    private AppTheme effectiveTheme(){
+        return HolidayThemeService.effectiveTheme(config,LocalDate.now());
+    }
+
     private void applyTheme(){
-        Theme.setActive(config.themeId);
-        AppTheme active=Theme.active();
+        AppTheme active=effectiveTheme();
+        Theme.setActive(active.id());
+        appliedRuntimeThemeId=active.id();
 
         /*
          * Keep map rendering synchronized with the selected theme. Dark-family

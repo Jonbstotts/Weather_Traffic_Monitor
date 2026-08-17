@@ -263,3 +263,17 @@
 - Added a broader Thanksgiving autumn palette with orange, amber, rust, brown, and muted golden variations.
 - Thanksgiving leaves now vary more in size, tumble speed, lateral drift, and sway.
 - Existing Christmas snow/frost, Independence Day fireworks, celebration confetti, and severe-weather suppression behavior remain unchanged.
+
+## 2.4.0
+- Added optional automatic holiday/seasonal theme switching under Settings > General.
+- Automatic holiday switching preserves the saved manual theme as the fallback outside holiday windows.
+- Automatic theme windows include January Winter Frost, Valentine's Day lead-in, St. Patrick's Day lead-in, Independence Day week, Halloween season, U.S. Thanksgiving week, and the December Christmas season.
+- Long-running displays re-evaluate the effective holiday theme automatically, including across midnight, without requiring an application restart.
+- Added Christmas perimeter string lights with red, green, and warm-white bulbs, soft glow, green sockets/wire, and asynchronous twinkle.
+- Christmas lights complement the existing snowflake and frost/crystal overlay.
+- Further improved Halloween fog with more/larger depth layers, broader fog banks, additional full-screen ground haze, long continuous wispy streams, lower opacity, parallax movement, and softer transitions between banks.
+- Retained Halloween orange/purple perimeter lights.
+- Upgraded Valentine's Day overlay with layered, gradient-filled heart silhouettes, outer glow, glossy highlights, floating petals, varied pink/red tones, slower drift, and gentle sway.
+- Upgraded St. Patrick's Day overlay with shaded dimensional shamrocks, green glow, detailed stems/highlights, and independent gold sparkle/glint particles.
+- Existing Thanksgiving multi-shape leaves, Independence Day fireworks, Christmas snow/frost, celebration confetti, and severe-weather suppression remain intact.
+- Automatic severe-weather map priority continues to suppress every decorative holiday/celebration effect immediately.
