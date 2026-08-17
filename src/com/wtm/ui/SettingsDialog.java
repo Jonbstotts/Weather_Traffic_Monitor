@@ -7,6 +7,10 @@ import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.nio.file.Path;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -29,6 +33,8 @@ public final class SettingsDialog extends JDialog {
     private final JCheckBox fullscreen=new JCheckBox("Fullscreen on startup");
     private final JComboBox<AppTheme> themeSelector=new JComboBox<>(AppTheme.values());
     private final JPanel themePreview=new JPanel();
+    private final JCheckBox themeEffects=new JCheckBox("Enable theme overlay effects");
+    private final JComboBox<String> overlayIntensity=new JComboBox<>(new String[]{"LOW","MEDIUM","HIGH"});
     private final JCheckBox radar=new JCheckBox("Show radar layer");
     private final JCheckBox traffic=new JCheckBox("Show traffic layer");
     private final JCheckBox alertMap=new JCheckBox("Show severe-weather polygons on map");
@@ -90,6 +96,20 @@ public final class SettingsDialog extends JDialog {
     };
     private final JTable sportsTable = new JTable(sportsModel);
 
+    private final JCheckBox celebrationsEnabled=new JCheckBox(
+            "Automatically add today's birthday / anniversary slides to Main Showcase");
+    private final JTextField celebrationMediaDir=new JTextField();
+    private final DefaultTableModel celebrationModel=new DefaultTableModel(
+            new Object[]{
+                    "Name","Birthday (MM-DD)","Hire Date (YYYY-MM-DD)","Photo path",
+                    "Birthday","Anniversary","Confetti","Enabled"
+            },0){
+        @Override public Class<?> getColumnClass(int column){
+            return column>=4?Boolean.class:String.class;
+        }
+    };
+    private final JTable celebrationTable=new JTable(celebrationModel);
+
     private final JComboBox<Integer> blockCount =
             new JComboBox<>(new Integer[]{6,8,10,12});
 
@@ -118,6 +138,7 @@ public final class SettingsDialog extends JDialog {
         tabs.addTab("Pinned Locations",locations());
         tabs.addTab("Routes",routes());
         tabs.addTab("Sports",sports());
+        tabs.addTab("Team Celebrations",celebrations());
         tabs.addTab("Dashboard Blocks",widgets());
         tabs.addTab("Main Showcase",showcase());
         tabs.addTab("API Providers",apiProviders());
@@ -147,6 +168,14 @@ public final class SettingsDialog extends JDialog {
         themePreview.setPreferredSize(new Dimension(420,72));
         themePreview.setBorder(BorderFactory.createTitledBorder("Theme preview"));
         addFull(p,y++,themePreview);
+        addFull(p,y++,themeEffects);
+        addRow(p,y++,"Overlay intensity",overlayIntensity);
+
+        JLabel overlayHelp=new JLabel(
+                "<html>Holiday themes can add lightweight effects such as snow, leaves, hearts, "
+              + "sparks, or seasonal particles. Automatic severe-weather map priority suppresses "
+              + "decorative overlays immediately.</html>");
+        addFull(p,y++,overlayHelp);
 
         themeSelector.addActionListener(e->{
             updateThemePreview();
@@ -405,6 +434,106 @@ public final class SettingsDialog extends JDialog {
         return sport;
     }
 
+    private JPanel celebrations(){
+        JPanel outer=new JPanel(new BorderLayout(10,10));
+        outer.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
+
+        JPanel top=form();
+        int y=0;
+
+        JLabel title=new JLabel("Automatic Team Celebrations");
+        title.setFont(title.getFont().deriveFont(Font.BOLD,16f));
+        addFull(top,y++,title);
+
+        JTextArea help=new JTextArea(
+                "Birthday and work-anniversary records are stored only in the local application "
+              + "configuration. On matching dates, the application generates a temporary Main "
+              + "Showcase slide automatically. Photos are optional; when omitted, initials are used. "
+              + "The celebration animation runs once per generated slide per application session.");
+        help.setLineWrap(true);help.setWrapStyleWord(true);
+        help.setEditable(false);help.setOpaque(false);
+        addFull(top,y++,help);
+
+        addFull(top,y++,celebrationsEnabled);
+        addRow(top,y++,"Celebration photo folder",celebrationMediaDir);
+
+        outer.add(top,BorderLayout.NORTH);
+
+        celebrationTable.setFillsViewportHeight(true);
+        celebrationTable.setRowHeight(28);
+        outer.add(new JScrollPane(celebrationTable),BorderLayout.CENTER);
+
+        JPanel controls=new JPanel(new FlowLayout(FlowLayout.LEFT));
+
+        JButton add=new JButton("+ Add Team Member");
+        add.addActionListener(e->celebrationModel.addRow(new Object[]{
+                "Team Member","","","",Boolean.TRUE,Boolean.TRUE,Boolean.TRUE,Boolean.TRUE
+        }));
+
+        JButton choosePhoto=new JButton("Choose Photo for Selected");
+        choosePhoto.addActionListener(e->chooseCelebrationPhoto());
+
+        JButton remove=new JButton("Remove selected");
+        remove.addActionListener(e->removeSelected(celebrationTable,celebrationModel));
+
+        controls.add(add);
+        controls.add(choosePhoto);
+        controls.add(remove);
+        outer.add(controls,BorderLayout.SOUTH);
+
+        return outer;
+    }
+
+    private void chooseCelebrationPhoto(){
+        int view=celebrationTable.getSelectedRow();
+        if(view<0){
+            JOptionPane.showMessageDialog(this,
+                    "Select a team member first.",
+                    "Select Team Member",JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        JFileChooser chooser=new JFileChooser();
+        if(!celebrationMediaDir.getText().trim().isBlank())
+            chooser.setCurrentDirectory(Path.of(celebrationMediaDir.getText().trim()).toFile());
+
+        int result=chooser.showOpenDialog(this);
+        if(result==JFileChooser.APPROVE_OPTION){
+            try{
+                Path source=chooser.getSelectedFile().toPath();
+                Path folder=celebrationMediaDir.getText().trim().isBlank()
+                        ?ConfigService.appDataDir().resolve("celebrations-media")
+                        :Path.of(celebrationMediaDir.getText().trim());
+
+                Files.createDirectories(folder);
+
+                int row=celebrationTable.convertRowIndexToModel(view);
+                String member=cell(celebrationModel,row,0).trim();
+                String base=member.isBlank()?"team-member":member
+                        .toLowerCase()
+                        .replaceAll("[^a-z0-9]+","-")
+                        .replaceAll("(^-|-$)","");
+
+                String original=source.getFileName().toString();
+                int dot=original.lastIndexOf('.');
+                String extension=dot>=0?original.substring(dot):".jpg";
+
+                Path target=folder.resolve(base+extension.toLowerCase());
+                Files.copy(source,target,StandardCopyOption.REPLACE_EXISTING);
+
+                celebrationMediaDir.setText(folder.toString());
+                celebrationModel.setValueAt(target.toAbsolutePath().toString(),row,3);
+            }catch(Exception ex){
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Unable to copy celebration photo: "+ex.getMessage(),
+                        "Photo Import Failed",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        }
+    }
+
     private JPanel widgets(){
         JPanel outer=new JPanel(new BorderLayout(10,10));
         outer.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
@@ -634,6 +763,8 @@ public final class SettingsDialog extends JDialog {
         fullscreen.setSelected(cfg.fullscreen);
         themeSelector.setSelectedItem(AppTheme.fromId(cfg.themeId));
         updateThemePreview();
+        themeEffects.setSelected(cfg.themeOverlayEffects);
+        overlayIntensity.setSelectedItem(cfg.overlayIntensity);
         radar.setSelected(cfg.showRadar);
         traffic.setSelected(cfg.showTraffic);
         alertMap.setSelected(cfg.showAlertsOnMap);
@@ -678,6 +809,25 @@ public final class SettingsDialog extends JDialog {
         sportsModel.setRowCount(0);
         for(SportsConfig sport:cfg.sports)
             sportsModel.addRow(new Object[]{sport.name(),sport.sport(),sport.leagueId(),sport.teamId(),sport.teamName(),sport.showLogos()});
+
+        celebrationsEnabled.setSelected(cfg.celebrationsEnabled);
+        celebrationMediaDir.setText(cfg.celebrationMediaDirectory.toString());
+        celebrationModel.setRowCount(0);
+        for(CelebrationConfig c:cfg.celebrations){
+            String birthday=(c.birthdayMonth()>0&&c.birthdayDay()>0)
+                    ?String.format("%02d-%02d",c.birthdayMonth(),c.birthdayDay())
+                    :"";
+            celebrationModel.addRow(new Object[]{
+                    c.name(),
+                    birthday,
+                    c.hireDate()==null?"":c.hireDate().toString(),
+                    c.photoPath(),
+                    c.showBirthday(),
+                    c.showAnniversary(),
+                    c.celebrationEffect(),
+                    c.enabled()
+            });
+        }
 
         mapWidthSlider.setValue(Math.max(55,Math.min(75,cfg.mapWidthPercent)));
         updateMapWidthLabel();
@@ -887,6 +1037,7 @@ public final class SettingsDialog extends JDialog {
             stopTableEditing(locationTable);
             stopTableEditing(routeTable);
             stopTableEditing(sportsTable);
+            stopTableEditing(celebrationTable);
 
             cfg.headerText=header.getText().trim();
             cfg.tickerText=ticker.getText().trim();
@@ -897,6 +1048,8 @@ public final class SettingsDialog extends JDialog {
             if(selected==null) selected=AppTheme.DARK;
             cfg.themeId=selected.id();
             cfg.darkMode=selected.dark();
+            cfg.themeOverlayEffects=themeEffects.isSelected();
+            cfg.overlayIntensity=String.valueOf(overlayIntensity.getSelectedItem());
             cfg.showRadar=radar.isSelected();
             cfg.showTraffic=traffic.isSelected();
             cfg.showAlertsOnMap=alertMap.isSelected();
@@ -925,6 +1078,10 @@ public final class SettingsDialog extends JDialog {
             cfg.mainShowcaseMediaEnabled=showcaseMedia.isSelected();
             cfg.severeWeatherMapPriority=severeMapPriority.isSelected();
             cfg.mainShowcaseIntervalSeconds=(Integer)showcaseInterval.getSelectedItem();
+            cfg.celebrationsEnabled=celebrationsEnabled.isSelected();
+            cfg.celebrationMediaDirectory=celebrationMediaDir.getText().trim().isBlank()
+                    ?ConfigService.appDataDir().resolve("celebrations-media")
+                    :Path.of(celebrationMediaDir.getText().trim());
 
             cfg.primary=new Location(
                     required(primaryName.getText(),"Primary location name"),
@@ -955,6 +1112,43 @@ public final class SettingsDialog extends JDialog {
                         number(cell(routeModel,i,3),destName+" longitude")
                 );
                 cfg.routes.add(new RouteConfig(routeName,cfg.primary,d));
+            }
+
+            cfg.celebrations.clear();
+            for(int i=0;i<celebrationModel.getRowCount();i++){
+                String name=cell(celebrationModel,i,0).trim();
+                if(name.isBlank()) continue;
+
+                int month=0,day=0;
+                String birthday=cell(celebrationModel,i,1).trim();
+                if(!birthday.isBlank()){
+                    String[] parts=birthday.split("-");
+                    if(parts.length!=2)
+                        throw new IllegalArgumentException(name+" birthday must use MM-DD.");
+                    month=Integer.parseInt(parts[0]);
+                    day=Integer.parseInt(parts[1]);
+                    LocalDate.of(2000,month,day); // validates month/day
+                }
+
+                LocalDate hireDate=null;
+                String hire=cell(celebrationModel,i,2).trim();
+                if(!hire.isBlank()){
+                    try{hireDate=LocalDate.parse(hire);}
+                    catch(DateTimeParseException ex){
+                        throw new IllegalArgumentException(name+" hire date must use YYYY-MM-DD.");
+                    }
+                }
+
+                String photo=cell(celebrationModel,i,3).trim();
+                boolean birthdayOn=Boolean.TRUE.equals(celebrationModel.getValueAt(i,4));
+                boolean anniversaryOn=Boolean.TRUE.equals(celebrationModel.getValueAt(i,5));
+                boolean confetti=Boolean.TRUE.equals(celebrationModel.getValueAt(i,6));
+                boolean enabled=Boolean.TRUE.equals(celebrationModel.getValueAt(i,7));
+
+                cfg.celebrations.add(new CelebrationConfig(
+                        name,month,day,hireDate,photo,
+                        birthdayOn,anniversaryOn,confetti,enabled
+                ));
             }
 
             cfg.sports.clear();

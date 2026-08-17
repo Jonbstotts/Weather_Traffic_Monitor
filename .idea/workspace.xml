@@ -4,16 +4,17 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="936686b2-079a-458c-9c77-52f54b0f263a" name="Changes" comment="first commit">
+    <list default="true" id="936686b2-079a-458c-9c77-52f54b0f263a" name="Changes" comment="ui updates">
+      <change beforePath="$PROJECT_DIR$/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/ARCHITECTURE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/CHANGELOG.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MANIFEST.MF" beforeDir="false" afterPath="$PROJECT_DIR$/MANIFEST.MF" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/WeatherTrafficMonitor.jar" beforeDir="false" afterPath="$PROJECT_DIR$/WeatherTrafficMonitor.jar" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/ApiUsagePanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/ApiUsagePanel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/AppTheme.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/AppTheme.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/LocationSearchDialog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/LocationSearchDialog.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/wtm/config/AppConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/config/AppConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/wtm/config/ConfigService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/config/ConfigService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/DashboardFrame.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/DashboardFrame.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/MainShowcasePanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/MainShowcasePanel.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/SettingsDialog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/SettingsDialog.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/TeamSearchDialog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/TeamSearchDialog.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -148,7 +149,23 @@
       <option name="project" value="LOCAL" />
       <updated>1786930997399</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="ui updates">
+      <option name="closed" value="true" />
+      <created>1786970446670</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1786970446670</updated>
+    </task>
+    <task id="LOCAL-00008" summary="ui updates">
+      <option name="closed" value="true" />
+      <created>1786971370294</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1786971370294</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -167,6 +184,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="first commit" />
-    <option name="LAST_COMMIT_MESSAGE" value="first commit" />
+    <MESSAGE value="ui updates" />
+    <option name="LAST_COMMIT_MESSAGE" value="ui updates" />
   </component>
 </project>

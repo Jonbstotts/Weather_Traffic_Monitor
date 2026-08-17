@@ -219,3 +219,26 @@
 - Standardized themed text-field height and padding for better row alignment.
 - Updated GridBag form rows to center controls consistently across macOS, Windows, and Raspberry Pi OS.
 - No dashboard functionality, API logic, or saved configuration format changed.
+
+## 2.3.0
+- Added Settings > Team Celebrations.
+- Added local birthday and work-anniversary records with optional employee photos.
+- Birthday records use month/day only; work-anniversary records retain hire year so completed years can be calculated automatically.
+- Today's matching birthday/anniversary records generate temporary Main Showcase slides automatically.
+- Celebration slides disappear automatically when the date no longer matches.
+- Long-running displays refresh date-driven celebration content automatically across midnight without requiring an application restart.
+- Added optional initials-based celebration artwork when no employee photo is supplied.
+- Added photo import that copies selected employee images into the local celebrations-media application-data directory.
+- Added one-time confetti animation when a celebration slide first appears during an application session.
+- Confetti can be disabled per team member.
+- Added optional application-wide theme overlay effects.
+- Christmas and Winter Frost use snowfall.
+- Halloween uses subtle drifting spooky particles.
+- Thanksgiving uses falling autumn leaves.
+- Independence Day uses red/blue spark particles.
+- Valentine's Day uses floating hearts.
+- St. Patrick's Day uses shamrock particles.
+- Added Low / Medium / High overlay intensity.
+- Automatic severe-weather map priority suppresses all decorative overlays and celebration effects immediately.
+- Decorative effects resume after automatic severe-weather priority clears.
+- Celebration names, dates, and photo paths remain local site configuration and are not compiled into the source code.

@@ -254,3 +254,23 @@ New holiday and seasonal presets:
 Theme-aware Settings controls now use a platform-independent combo-box presentation. This removes
 macOS native white interior artifacts and keeps dropdown values, arrows, borders, popup items, and
 form rows consistently aligned across macOS, Windows, and Raspberry Pi OS.
+
+## Team Celebrations & Theme Overlays in v2.3.0
+
+Settings > Team Celebrations can store local recognition records for birthdays and work
+anniversaries. On matching dates the Main Showcase automatically generates a temporary
+recognition slide with the team member's name, optional photo, and completed anniversary years.
+
+Photos selected through Settings are copied into:
+
+`~/.weather-traffic-monitor/celebrations-media`
+
+If no photo is supplied, the slide uses a polished initials-based placeholder.
+
+A celebration slide can trigger a short confetti effect once per application session. Holiday
+themes can also enable lightweight screen overlays through Settings > General:
+Christmas/Winter snowfall, Halloween particles, Thanksgiving leaves, Independence Day sparks,
+Valentine hearts, and St. Patrick's shamrocks. Overlay density can be Low, Medium, or High.
+
+Automatic severe-weather map priority always supersedes decorative content: when AUTO LIVE severe
+weather takes control, celebration/holiday effects are suppressed and the live map remains visible.
