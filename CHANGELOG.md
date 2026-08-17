@@ -242,3 +242,24 @@
 - Automatic severe-weather map priority suppresses all decorative overlays and celebration effects immediately.
 - Decorative effects resume after automatic severe-weather priority clears.
 - Celebration names, dates, and photo paths remain local site configuration and are not compiled into the source code.
+
+## 2.3.1
+- Reworked holiday effects so each theme has its own distinct animation system instead of generic recolored particles.
+- Halloween now uses layered rolling fog banks with translucent haze and horizontal movement across the display.
+- Independence Day now uses launch-and-burst fireworks with rising rocket trails, radial bursts, secondary colors, spark trails, fade-out, and gravity.
+- Christmas and Winter Frost now use individually drawn six-arm snowflakes instead of falling ovals.
+- Snowflakes vary in size, depth, sway, rotation, fall speed, and opacity for a more natural snowfall effect.
+- Christmas/Winter Frost now add a subtle frosted-glass edge treatment and crystalline frost detail around the display perimeter.
+- Overlay intensity continues to control the density/frequency of snow, fog layers, and fireworks.
+- Celebration confetti remains unchanged and independent from holiday theme effects.
+- Automatic severe-weather priority still suppresses every decorative effect immediately.
+
+## 2.3.2
+- Improved Halloween fog with much wider overlapping fog banks, smoother low-opacity gradients, depth-based movement, slow turbulence, and thin wispy layers.
+- Removed the remaining cloud/blob appearance from the Halloween effect in favor of a continuous rolling-mist presentation.
+- Added Halloween perimeter string lights with alternating orange and purple bulbs.
+- Halloween lights include soft glow halos, visible sockets/bulbs, and a gentle asynchronous twinkle.
+- Expanded Thanksgiving leaves from one generic shape to three distinct silhouettes: maple-inspired, oak-inspired, and pointed autumn leaves.
+- Added a broader Thanksgiving autumn palette with orange, amber, rust, brown, and muted golden variations.
+- Thanksgiving leaves now vary more in size, tumble speed, lateral drift, and sway.
+- Existing Christmas snow/frost, Independence Day fireworks, celebration confetti, and severe-weather suppression behavior remain unchanged.

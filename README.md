@@ -274,3 +274,25 @@ Valentine hearts, and St. Patrick's shamrocks. Overlay density can be Low, Mediu
 
 Automatic severe-weather map priority always supersedes decorative content: when AUTO LIVE severe
 weather takes control, celebration/holiday effects are suppressed and the live map remains visible.
+
+## Polished holiday effects in v2.3.1
+
+Holiday overlays now use effect-specific animation rather than one shared particle style:
+
+- Christmas / Winter Frost: drawn six-arm snowflakes with natural sway, rotation, depth, and a subtle frost/crystal treatment around the screen edges.
+- Halloween: multiple translucent rolling fog banks that drift horizontally across the display.
+- Independence Day: rising firework rockets that burst into radial red/blue/white/gold spark patterns with trails and gravity.
+- Thanksgiving, Valentine's Day, and St. Patrick's Day retain their lightweight seasonal particles.
+- Celebration confetti remains a separate one-time recognition effect.
+
+Low / Medium / High intensity continues to control visual density. Severe-weather priority
+suppresses all decorative overlays immediately.
+
+## Holiday overlay refinements in v2.3.2
+
+Halloween now uses broad overlapping rolling-fog layers with slow turbulence and thin wisps instead
+of visible fog blobs. The theme also adds an orange/purple perimeter light string with soft glow and
+subtle independent twinkling.
+
+Thanksgiving now includes three leaf silhouettes (maple-inspired, oak-inspired, and pointed leaves)
+with a wider autumn palette and more varied tumbling/drifting motion.
