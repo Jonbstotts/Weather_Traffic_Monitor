@@ -191,7 +191,7 @@ public final class MainShowcasePanel extends RoundedPanel {
 
     private JComponent createMediaComponent(Path file){
         try{
-            BufferedImage image=ImageIO.read(file.toFile());
+            BufferedImage image=OrientedImageLoader.load(file);
             if(image==null) return null;
 
             JPanel panel=new JPanel(new BorderLayout());

@@ -39,6 +39,7 @@ public final class ConfigService {
             cfg.darkMode = bool(p, "darkMode", cfg.darkMode);
             String legacyThemeDefault=cfg.darkMode?"DARK":"LIGHT";
             cfg.themeId=p.getProperty("themeId",legacyThemeDefault).trim();
+            cfg.automaticHolidayThemes=bool(p,"automaticHolidayThemes",false);
             AppTheme selectedTheme=AppTheme.fromId(cfg.themeId);
             cfg.themeId=selectedTheme.id();
             cfg.darkMode=selectedTheme.dark();
@@ -164,6 +165,7 @@ public final class ConfigService {
             Properties p = new Properties();
             p.setProperty("fullscreen", Boolean.toString(cfg.fullscreen));
             p.setProperty("themeId", cfg.themeId);
+            p.setProperty("automaticHolidayThemes",Boolean.toString(cfg.automaticHolidayThemes));
             p.setProperty("darkMode", Boolean.toString(cfg.darkMode));
             p.setProperty("showHeader", Boolean.toString(cfg.showHeader));
             p.setProperty("showTicker", Boolean.toString(cfg.showTicker));

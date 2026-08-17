@@ -120,8 +120,8 @@ public final class OverlayEffectsPanel extends JComponent {
                 case HALLOWEEN -> updateFog();
                 case INDEPENDENCE -> updateFireworks();
                 case THANKSGIVING -> maintainSimpleParticles("LEAF");
-                case VALENTINE -> maintainSimpleParticles("HEART");
-                case ST_PATRICKS -> maintainSimpleParticles("SHAMROCK");
+                case VALENTINE -> maintainValentine();
+                case ST_PATRICKS -> maintainStPatricks();
                 default -> clearHolidayCollections();
             }
         }else{
@@ -159,6 +159,34 @@ public final class OverlayEffectsPanel extends JComponent {
             particles.add(Particle.theme(random,getWidth(),getHeight(),kind));
     }
 
+    private void maintainValentine(){
+        fireworks.clear();
+        fogBanks.clear();
+
+        int hearts=count(18,30,44);
+        int petals=count(10,18,28);
+
+        while(countKind("HEART")<hearts)
+            particles.add(Particle.theme(random,getWidth(),getHeight(),"HEART"));
+
+        while(countKind("PETAL")<petals)
+            particles.add(Particle.theme(random,getWidth(),getHeight(),"PETAL"));
+    }
+
+    private void maintainStPatricks(){
+        fireworks.clear();
+        fogBanks.clear();
+
+        int shamrocks=count(18,30,44);
+        int gold=count(12,22,34);
+
+        while(countKind("SHAMROCK")<shamrocks)
+            particles.add(Particle.theme(random,getWidth(),getHeight(),"SHAMROCK"));
+
+        while(countKind("GOLD_SPARK")<gold)
+            particles.add(Particle.theme(random,getWidth(),getHeight(),"GOLD_SPARK"));
+    }
+
     private void clearHolidayCollections(){
         fireworks.clear();
         fogBanks.clear();
@@ -192,7 +220,7 @@ public final class OverlayEffectsPanel extends JComponent {
     private void createFogBanks(){
         fogBanks.clear();
 
-        int count=count(4,6,8);
+        int count=count(6,8,11);
         for(int i=0;i<count;i++)
             fogBanks.add(FogBank.create(random,getWidth(),getHeight(),i,count));
     }
@@ -258,8 +286,13 @@ public final class OverlayEffectsPanel extends JComponent {
 
         if(!confetti && themeEffectsEnabled){
             if(theme==AppTheme.HALLOWEEN){
+                paintHalloweenAtmosphere(g2);
                 paintFog(g2);
                 paintHalloweenLights(g2);
+            }
+
+            if(theme==AppTheme.CHRISTMAS){
+                paintChristmasLights(g2);
             }
 
             if(theme==AppTheme.INDEPENDENCE)
@@ -293,8 +326,10 @@ public final class OverlayEffectsPanel extends JComponent {
             switch(p.kind){
                 case "SNOWFLAKE" -> drawSnowflake(g2,p);
                 case "LEAF" -> drawLeaf(g2,p);
-                case "HEART" -> drawHeart(g2,(int)p.x,(int)p.y,p.size,p.color);
-                case "SHAMROCK" -> drawShamrock(g2,(int)p.x,(int)p.y,p.size,p.color);
+                case "HEART" -> drawPolishedHeart(g2,p);
+                case "PETAL" -> drawValentinePetal(g2,p);
+                case "SHAMROCK" -> drawPolishedShamrock(g2,p);
+                case "GOLD_SPARK" -> drawGoldSpark(g2,p);
             }
         }
     }
@@ -427,6 +462,210 @@ public final class OverlayEffectsPanel extends JComponent {
      * Orange/purple perimeter string lights for the Halloween theme.
      * A small sinusoidal brightness shift gives them a slow, tasteful twinkle.
      */
+    /**
+     * Full-screen low-contrast haze used behind the moving fog banks.
+     *
+     * This fills the gaps between individual banks and adds long, slowly
+     * undulating streams so the screen reads as one continuous fog field.
+     */
+    private void paintHalloweenAtmosphere(Graphics2D g2){
+        int w=getWidth();
+        int h=getHeight();
+        if(w<=0||h<=0)return;
+
+        Graphics2D a=(Graphics2D)g2.create();
+
+        long now=System.currentTimeMillis();
+        double t=now/5200.0;
+
+        // Vertical ground-haze gradient: nearly invisible in the upper third,
+        // gradually denser toward the floor.
+        LinearGradientPaint haze=new LinearGradientPaint(
+                new Point2D.Double(0,h*.18),
+                new Point2D.Double(0,h),
+                new float[]{0f,.36f,.70f,1f},
+                new Color[]{
+                        new Color(185,190,205,0),
+                        new Color(185,190,205,8),
+                        new Color(178,185,198,18),
+                        new Color(170,177,190,30)
+                }
+        );
+        a.setPaint(haze);
+        a.fillRect(0,0,w,h);
+
+        // Long continuous wisps span almost the full display width.
+        int streams=switch(intensity){
+            case "HIGH" -> 7;
+            case "MEDIUM" -> 5;
+            default -> 4;
+        };
+
+        for(int row=0;row<streams;row++){
+            double baseY=h*(.33+row*(.55/Math.max(1,streams-1)));
+            double phase=t*(.18+row*.025)+row*1.37;
+
+            Path2D upper=new Path2D.Double();
+            Path2D lower=new Path2D.Double();
+
+            int segments=18;
+            for(int i=0;i<=segments;i++){
+                double x=w*i/(double)segments;
+                double y=baseY
+                        +Math.sin(phase+i*.43)*16
+                        +Math.sin(phase*.63+i*.77)*8;
+                double thickness=34+row*6
+                        +Math.sin(phase+i*.31)*6;
+
+                if(i==0){
+                    upper.moveTo(x,y-thickness/2);
+                    lower.moveTo(x,y+thickness/2);
+                }else{
+                    upper.lineTo(x,y-thickness/2);
+                    lower.lineTo(x,y+thickness/2);
+                }
+            }
+
+            Path2D ribbon=new Path2D.Double();
+            ribbon.append(upper,false);
+
+            // Reverse lower path manually.
+            for(int i=segments;i>=0;i--){
+                double x=w*i/(double)segments;
+                double y=baseY
+                        +Math.sin(phase+i*.43)*16
+                        +Math.sin(phase*.63+i*.77)*8;
+                double thickness=34+row*6
+                        +Math.sin(phase+i*.31)*6;
+                ribbon.lineTo(x,y+thickness/2);
+            }
+            ribbon.closePath();
+
+            int alpha=10+row*2;
+            a.setColor(new Color(205,210,220,alpha));
+            a.fill(ribbon);
+        }
+
+        // Very subtle vignette keeps fog feeling integrated at the edges.
+        RadialGradientPaint vignette=new RadialGradientPaint(
+                new Point2D.Double(w/2.0,h/2.0),
+                (float)Math.max(w,h)*.72f,
+                new float[]{0f,.72f,1f},
+                new Color[]{
+                        new Color(0,0,0,0),
+                        new Color(5,7,10,0),
+                        new Color(5,7,10,36)
+                }
+        );
+        a.setPaint(vignette);
+        a.fillRect(0,0,w,h);
+
+        a.dispose();
+    }
+
+    /**
+     * Red/green/warm-white perimeter lights for the Christmas theme.
+     * The bulbs use independent glow and a slow asynchronous twinkle.
+     */
+    private void paintChristmasLights(Graphics2D g2){
+        int w=getWidth();
+        int h=getHeight();
+        if(w<=0||h<=0)return;
+
+        Graphics2D l=(Graphics2D)g2.create();
+        l.setRenderingHint(RenderingHints.KEY_ANTIALIASING,RenderingHints.VALUE_ANTIALIAS_ON);
+
+        int spacing=switch(intensity){
+            case "HIGH" -> 36;
+            case "MEDIUM" -> 44;
+            default -> 54;
+        };
+
+        long now=System.currentTimeMillis();
+
+        Color[] palette={
+                new Color(230,48,58),
+                new Color(45,182,88),
+                new Color(255,220,120)
+        };
+
+        // Dark green wire just inside the frosted perimeter.
+        l.setColor(new Color(35,75,50,175));
+        l.setStroke(new BasicStroke(2.3f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
+        l.drawRoundRect(15,15,Math.max(1,w-31),Math.max(1,h-31),18,18);
+
+        int index=0;
+        for(int x=30;x<w-30;x+=spacing){
+            drawChristmasBulb(l,x,18,index++,now,palette,false);
+            drawChristmasBulb(l,x,h-19,index++,now,palette,true);
+        }
+
+        for(int y=32;y<h-32;y+=spacing){
+            drawChristmasBulb(l,18,y,index++,now,palette,true);
+            drawChristmasBulb(l,w-19,y,index++,now,palette,false);
+        }
+
+        l.dispose();
+    }
+
+    private static void drawChristmasBulb(
+            Graphics2D g,
+            int x,
+            int y,
+            int index,
+            long now,
+            Color[] palette,
+            boolean phaseShift
+    ){
+        Color base=palette[(index+(phaseShift?1:0))%palette.length];
+        double pulse=.76+.24*Math.sin(now/760.0+index*.61);
+        int alpha=(int)(135+105*pulse);
+
+        int halo=20;
+        RadialGradientPaint glow=new RadialGradientPaint(
+                new Point2D.Double(x,y),
+                halo,
+                new float[]{0f,.30f,.70f,1f},
+                new Color[]{
+                        new Color(base.getRed(),base.getGreen(),base.getBlue(),Math.min(190,alpha)),
+                        new Color(base.getRed(),base.getGreen(),base.getBlue(),78),
+                        new Color(base.getRed(),base.getGreen(),base.getBlue(),22),
+                        new Color(base.getRed(),base.getGreen(),base.getBlue(),0)
+                }
+        );
+
+        g.setPaint(glow);
+        g.fill(new Ellipse2D.Double(x-halo,y-halo,halo*2,halo*2));
+
+        // Green socket/cap.
+        g.setColor(new Color(28,78,46,230));
+        g.fillRoundRect(x-4,y-8,8,7,3,3);
+
+        // Tear-drop style bulb.
+        Path2D bulb=new Path2D.Double();
+        bulb.moveTo(x,y+10);
+        bulb.curveTo(x-7,y+4,x-6,y-2,x,y-4);
+        bulb.curveTo(x+6,y-2,x+7,y+4,x,y+10);
+        bulb.closePath();
+
+        GradientPaint fill=new GradientPaint(
+                x,y-4,
+                new Color(
+                        Math.min(255,base.getRed()+28),
+                        Math.min(255,base.getGreen()+28),
+                        Math.min(255,base.getBlue()+28),
+                        Math.min(255,alpha+55)
+                ),
+                x,y+10,
+                new Color(base.getRed(),base.getGreen(),base.getBlue(),alpha)
+        );
+        g.setPaint(fill);
+        g.fill(bulb);
+
+        g.setColor(new Color(255,255,245,165));
+        g.fillOval(x-2,y-1,3,5);
+    }
+
     private void paintHalloweenLights(Graphics2D g2){
         int w=getWidth();
         int h=getHeight();
@@ -587,29 +826,183 @@ public final class OverlayEffectsPanel extends JComponent {
         l.dispose();
     }
 
-    private static void drawHeart(Graphics2D g,int x,int y,int s,Color c){
-        g.setColor(c);
+    private static void drawPolishedHeart(Graphics2D g,Particle p){
+        Graphics2D h=(Graphics2D)g.create();
+        h.translate(p.x,p.y);
+        h.rotate(p.rotation);
 
-        int half=Math.max(4,s/2);
-        g.fillOval(x,y,half,half);
-        g.fillOval(x+half-1,y,half,half);
+        double size=p.size;
 
-        Polygon p=new Polygon(
-                new int[]{x,x+s,x+s/2},
-                new int[]{y+half/2,y+half/2,y+s},
-                3
+        // Outer glow.
+        RadialGradientPaint glow=new RadialGradientPaint(
+                new Point2D.Double(0,0),
+                (float)(size*.90),
+                new float[]{0f,.55f,1f},
+                new Color[]{
+                        new Color(255,125,165,75),
+                        new Color(235,80,130,30),
+                        new Color(235,80,130,0)
+                }
         );
-        g.fillPolygon(p);
+        h.setPaint(glow);
+        h.fill(new Ellipse2D.Double(-size,-size,size*2,size*2));
+
+        Path2D heart=new Path2D.Double();
+        heart.moveTo(0,size*.62);
+        heart.curveTo(
+                -size*.68,size*.10,
+                -size*.72,-size*.48,
+                -size*.30,-size*.55
+        );
+        heart.curveTo(
+                -size*.08,-size*.60,
+                0,-size*.38,
+                0,-size*.24
+        );
+        heart.curveTo(
+                0,-size*.38,
+                size*.08,-size*.60,
+                size*.30,-size*.55
+        );
+        heart.curveTo(
+                size*.72,-size*.48,
+                size*.68,size*.10,
+                0,size*.62
+        );
+        heart.closePath();
+
+        GradientPaint fill=new GradientPaint(
+                0,(float)(-size*.55),
+                new Color(255,152,184,215),
+                0,(float)(size*.62),
+                new Color(202,50,105,185)
+        );
+        h.setPaint(fill);
+        h.fill(heart);
+
+        h.setColor(new Color(255,225,235,145));
+        h.setStroke(new BasicStroke(1.2f));
+        h.draw(heart);
+
+        // Small glossy highlight.
+        h.setComposite(AlphaComposite.SrcOver.derive(.42f));
+        h.setColor(Color.WHITE);
+        h.fill(new Ellipse2D.Double(
+                -size*.28,-size*.34,
+                size*.18,size*.10
+        ));
+
+        h.dispose();
     }
 
-    private static void drawShamrock(Graphics2D g,int x,int y,int s,Color c){
-        g.setColor(c);
+    private static void drawValentinePetal(Graphics2D g,Particle p){
+        Graphics2D v=(Graphics2D)g.create();
+        v.translate(p.x,p.y);
+        v.rotate(p.rotation);
 
-        int d=Math.max(4,s/2);
-        g.fillOval(x+d/2,y,d,d);
-        g.fillOval(x,y+d/2,d,d);
-        g.fillOval(x+d,y+d/2,d,d);
-        g.fillRect(x+d-1,y+d,d/3+1,s);
+        double s=p.size;
+        Path2D petal=new Path2D.Double();
+        petal.moveTo(0,-s*.48);
+        petal.curveTo(s*.46,-s*.12,s*.34,s*.37,0,s*.52);
+        petal.curveTo(-s*.34,s*.37,-s*.46,-s*.12,0,-s*.48);
+        petal.closePath();
+
+        v.setColor(p.color);
+        v.fill(petal);
+
+        v.setColor(new Color(255,235,242,110));
+        v.setStroke(new BasicStroke(.9f));
+        v.draw(new Line2D.Double(0,-s*.32,0,s*.30));
+
+        v.dispose();
+    }
+
+    private static void drawPolishedShamrock(Graphics2D g,Particle p){
+        Graphics2D s=(Graphics2D)g.create();
+        s.translate(p.x,p.y);
+        s.rotate(p.rotation);
+
+        double size=p.size;
+        double d=size*.52;
+
+        // Soft green glow.
+        RadialGradientPaint glow=new RadialGradientPaint(
+                new Point2D.Double(0,0),
+                (float)(size*.92),
+                new float[]{0f,.62f,1f},
+                new Color[]{
+                        new Color(70,220,120,58),
+                        new Color(45,180,95,22),
+                        new Color(45,180,95,0)
+                }
+        );
+        s.setPaint(glow);
+        s.fill(new Ellipse2D.Double(-size,-size,size*2,size*2));
+
+        GradientPaint leafFill=new GradientPaint(
+                0,(float)-size,
+                new Color(92,220,126,220),
+                0,(float)size,
+                new Color(24,132,66,205)
+        );
+        s.setPaint(leafFill);
+
+        s.fill(new Ellipse2D.Double(-d/2,-size*.60,d,d));
+        s.fill(new Ellipse2D.Double(-size*.58,-d*.10,d,d));
+        s.fill(new Ellipse2D.Double(size*.06,-d*.10,d,d));
+
+        Path2D stem=new Path2D.Double();
+        stem.moveTo(-size*.08,size*.08);
+        stem.curveTo(
+                -size*.02,size*.32,
+                size*.05,size*.52,
+                size*.16,size*.72
+        );
+        stem.lineTo(size*.28,size*.68);
+        stem.curveTo(
+                size*.14,size*.42,
+                size*.10,size*.22,
+                size*.08,size*.08
+        );
+        stem.closePath();
+        s.fill(stem);
+
+        s.setColor(new Color(214,255,224,125));
+        s.setStroke(new BasicStroke(1f));
+        s.draw(new Arc2D.Double(
+                -d*.28,-size*.52,
+                d*.52,d*.52,
+                105,82,Arc2D.OPEN
+        ));
+
+        s.dispose();
+    }
+
+    private static void drawGoldSpark(Graphics2D g,Particle p){
+        Graphics2D s=(Graphics2D)g.create();
+        s.translate(p.x,p.y);
+        s.rotate(p.rotation);
+
+        int size=Math.max(4,p.size);
+        RadialGradientPaint glow=new RadialGradientPaint(
+                new Point2D.Double(0,0),
+                size,
+                new float[]{0f,.35f,1f},
+                new Color[]{
+                        new Color(255,239,135,220),
+                        new Color(244,190,52,90),
+                        new Color(244,190,52,0)
+                }
+        );
+        s.setPaint(glow);
+        s.fill(new Ellipse2D.Double(-size,-size,size*2,size*2));
+
+        s.setColor(new Color(255,239,150,225));
+        s.setStroke(new BasicStroke(1.2f,BasicStroke.CAP_ROUND,BasicStroke.JOIN_ROUND));
+        s.draw(new Line2D.Double(-size*.55,0,size*.55,0));
+        s.draw(new Line2D.Double(0,-size*.55,0,size*.55));
+
+        s.dispose();
     }
 
     private int count(int low,int medium,int high){
@@ -693,6 +1086,14 @@ public final class OverlayEffectsPanel extends JComponent {
             p.dx=-.45+r.nextDouble()*.9;
             p.dy=.65+r.nextDouble()*1.5;
             p.size=7+r.nextInt(11);
+
+            if("HEART".equals(kind)){
+                p.dx=-.55+r.nextDouble()*1.1;
+                p.dy=.35+r.nextDouble()*.78;
+                p.size=9+r.nextInt(14);
+                p.swayPhase=r.nextDouble()*Math.PI*2;
+                p.swaySpeed=.016+r.nextDouble()*.026;
+            }
             p.rotation=r.nextDouble()*Math.PI;
             p.dr=-.035+r.nextDouble()*.07;
 
@@ -717,9 +1118,39 @@ public final class OverlayEffectsPanel extends JComponent {
                 p.swayPhase=r.nextDouble()*Math.PI*2;
                 p.swaySpeed=.018+r.nextDouble()*.030;
             }else{
+                p.variant=r.nextInt(3);
+
                 p.color=switch(kind){
-                    case "HEART" -> new Color(225,70,120,150);
-                    case "SHAMROCK" -> new Color(55,190,105,150);
+                    case "HEART" -> {
+                        Color[] hearts={
+                                new Color(235,70,125,185),
+                                new Color(245,112,150,175),
+                                new Color(205,60,112,180)
+                        };
+                        yield hearts[r.nextInt(hearts.length)];
+                    }
+                    case "PETAL" -> {
+                        p.size=5+r.nextInt(8);
+                        p.dx=-.55+r.nextDouble()*1.1;
+                        p.dy=.35+r.nextDouble()*.75;
+                        p.dr=-.045+r.nextDouble()*.09;
+                        yield r.nextBoolean()
+                                ?new Color(255,180,202,145)
+                                :new Color(244,125,164,135);
+                    }
+                    case "SHAMROCK" -> {
+                        p.size=9+r.nextInt(12);
+                        p.dx=-.55+r.nextDouble()*1.1;
+                        p.dy=.48+r.nextDouble()*.95;
+                        yield new Color(55,190,105,165);
+                    }
+                    case "GOLD_SPARK" -> {
+                        p.size=4+r.nextInt(5);
+                        p.dx=-.35+r.nextDouble()*.7;
+                        p.dy=.30+r.nextDouble()*.60;
+                        p.dr=-.08+r.nextDouble()*.16;
+                        yield new Color(246,196,60,180);
+                    }
                     default -> Color.WHITE;
                 };
             }
@@ -734,6 +1165,9 @@ public final class OverlayEffectsPanel extends JComponent {
             }else if("LEAF".equals(kind)){
                 swayPhase+=swaySpeed;
                 x+=dx+Math.sin(swayPhase)*.55;
+            }else if("HEART".equals(kind)||"PETAL".equals(kind)||"SHAMROCK".equals(kind)){
+                swayPhase+=swaySpeed==0?.021:swaySpeed;
+                x+=dx+Math.sin(swayPhase)*.28;
             }else{
                 x+=dx;
             }
@@ -766,8 +1200,8 @@ public final class OverlayEffectsPanel extends JComponent {
 
             // Wide banks overlap heavily, which removes the appearance of
             // individual "cloud blobs" and creates a continuous rolling layer.
-            f.width=Math.max(620,w*(.62+r.nextDouble()*.28));
-            f.height=135+r.nextDouble()*150;
+            f.width=Math.max(760,w*(.72+r.nextDouble()*.34));
+            f.height=155+r.nextDouble()*175;
 
             double pct=index/(double)Math.max(1,total-1);
             f.y=h*(.28+pct*.62)-r.nextDouble()*55;
@@ -779,7 +1213,7 @@ public final class OverlayEffectsPanel extends JComponent {
             f.speed=.15+r.nextDouble()*.22+f.depth*.10;
             f.phase=r.nextDouble()*Math.PI*2;
             f.phase2=r.nextDouble()*Math.PI*2;
-            f.alpha=(float)(.035+r.nextDouble()*.035+f.depth*.025);
+            f.alpha=(float)(.030+r.nextDouble()*.030+f.depth*.022);
 
             return f;
         }
@@ -830,7 +1264,7 @@ public final class OverlayEffectsPanel extends JComponent {
              * gradients with very low opacity; because they overlap the main
              * body, the viewer perceives rolling fog rather than separate blobs.
              */
-            int patches=11;
+            int patches=14;
             for(int i=0;i<patches;i++){
                 double pct=i/(double)(patches-1);
                 double cx=x+pct*width;
@@ -841,7 +1275,7 @@ public final class OverlayEffectsPanel extends JComponent {
                 double radius=width*(.095+.025*Math.sin(i*.84+phase));
                 radius=Math.max(85,radius);
 
-                int innerAlpha=(int)Math.max(5,Math.min(28,255*alpha*.86));
+                int innerAlpha=(int)Math.max(4,Math.min(23,255*alpha*.78));
 
                 RadialGradientPaint mist=new RadialGradientPaint(
                         new Point2D.Double(cx,cy),

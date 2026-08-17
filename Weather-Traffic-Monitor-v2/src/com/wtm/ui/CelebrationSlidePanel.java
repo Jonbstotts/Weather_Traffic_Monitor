@@ -2,7 +2,6 @@ package com.wtm.ui;
 
 import com.wtm.model.CelebrationConfig;
 
-import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -67,7 +66,7 @@ public final class CelebrationSlidePanel extends JPanel {
     private static JComponent portrait(String path,String name){
         try{
             if(path!=null&&!path.isBlank()&&Files.isRegularFile(Path.of(path))){
-                BufferedImage image=ImageIO.read(Path.of(path).toFile());
+                BufferedImage image=OrientedImageLoader.load(Path.of(path));
                 if(image!=null){
                     return new JPanel(){
                         {setOpaque(false);}
@@ -78,7 +77,8 @@ public final class CelebrationSlidePanel extends JPanel {
                             int dw=(int)(image.getWidth()*scale),dh=(int)(image.getHeight()*scale);
                             int x=(w-dw)/2,y=(h-dh)/2;
                             Graphics2D g2=(Graphics2D)g.create();
-                            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                            g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION,RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                            g2.setRenderingHint(RenderingHints.KEY_RENDERING,RenderingHints.VALUE_RENDER_QUALITY);
                             g2.drawImage(image,x,y,dw,dh,null);
                             g2.dispose();
                         }

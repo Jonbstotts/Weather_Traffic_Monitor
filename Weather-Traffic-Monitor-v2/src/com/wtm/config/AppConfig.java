@@ -21,6 +21,13 @@ public final class AppConfig {
      * flag and is synchronized from the chosen theme.
      */
     public String themeId = "DARK";
+
+    /**
+     * When enabled, holiday/seasonal presets temporarily override themeId based
+     * on the current local date. themeId remains the manual fallback.
+     */
+    public boolean automaticHolidayThemes = false;
+
     public boolean darkMode = true;
     public boolean showHeader = true;
     public boolean showTicker = true;

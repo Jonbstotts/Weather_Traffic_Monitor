@@ -296,3 +296,37 @@ subtle independent twinkling.
 
 Thanksgiving now includes three leaf silhouettes (maple-inspired, oak-inspired, and pointed leaves)
 with a wider autumn palette and more varied tumbling/drifting motion.
+
+## Automatic holiday themes and overlay polish in v2.4.0
+
+Settings > General now includes **Automatically switch to holiday / seasonal themes**. When
+enabled, the application temporarily selects an appropriate holiday theme based on the current
+local date while keeping the manually selected theme as the fallback outside holiday windows.
+
+Automatic theme schedule:
+- January 1–31: Winter Frost
+- February 10–14: Valentine's Day
+- March 10–17: St. Patrick's Day
+- July 1–4: Independence Day
+- October 15–31: Halloween
+- Seven days before U.S. Thanksgiving through the following Sunday: Thanksgiving
+- December 1–31: Christmas
+
+The active automatic theme is re-evaluated while the display remains running, so date changes do
+not require a restart.
+
+Overlay refinements:
+- Christmas: snowflakes + frost/crystals + red/green/warm-white perimeter string lights.
+- Halloween: deeper multi-layer rolling fog, full-screen ground haze, continuous wisps, and orange/purple lights.
+- Valentine's Day: glowing gradient hearts with floating petal accents.
+- St. Patrick's Day: dimensional shamrocks with green glow and gold sparkle accents.
+
+## Phone photo orientation fix in v2.4.1
+
+JPEG images from phones/cameras can store their physical pixels sideways and rely on EXIF
+Orientation metadata to tell viewers how to rotate them. Swing/ImageIO does not consistently
+apply that metadata automatically.
+
+v2.4.1 adds an orientation-aware image loader that reads the JPEG EXIF Orientation tag and
+normalizes the pixels before display. Birthday/anniversary photos and Main Showcase JPG/JPEG
+announcement images now automatically handle all standard EXIF rotation/mirroring states.
