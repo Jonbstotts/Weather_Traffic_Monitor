@@ -1048,7 +1048,11 @@ public final class SettingsDialog extends JDialog {
         p.add(new JLabel(label),a);
 
         GridBagConstraints b=new GridBagConstraints();
-        b.gridx=1;b.gridy=y;b.weightx=1;b.fill=GridBagConstraints.HORIZONTAL;
+        b.gridx=1;
+        b.gridy=y;
+        b.weightx=1;
+        b.fill=GridBagConstraints.HORIZONTAL;
+        b.anchor=GridBagConstraints.CENTER;
         b.insets=new Insets(6,4,6,4);
         p.add(field,b);
     }

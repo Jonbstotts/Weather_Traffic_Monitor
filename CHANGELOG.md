@@ -209,3 +209,13 @@
 - Added Holiday • St. Patrick’s Day.
 - Added Seasonal • Winter Frost.
 - Existing operational themes remain available.
+
+## 2.2.1
+- Fixed misaligned/clipped dropdown controls introduced by universal theming on macOS.
+- Replaced platform-native JComboBox painting in themed Settings screens with a consistent BasicComboBoxUI implementation.
+- Removed the white native interior strip visible beneath dark-themed combo-box values.
+- Standardized dropdown height, text padding, vertical centering, popup-row height, arrow-button width, borders, and selection colors.
+- Applied the fix globally to Theme, Dashboard Blocks, Main Showcase, API Providers, Data & Refresh, and all future Settings combo boxes.
+- Standardized themed text-field height and padding for better row alignment.
+- Updated GridBag form rows to center controls consistently across macOS, Windows, and Raspberry Pi OS.
+- No dashboard functionality, API logic, or saved configuration format changed.

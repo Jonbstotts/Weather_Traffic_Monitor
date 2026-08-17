@@ -249,3 +249,8 @@ New holiday and seasonal presets:
 - Holiday • Valentine’s Day
 - Holiday • St. Patrick’s Day
 - Seasonal • Winter Frost
+
+## Settings control alignment fix in v2.2.1
+Theme-aware Settings controls now use a platform-independent combo-box presentation. This removes
+macOS native white interior artifacts and keeps dropdown values, arrows, borders, popup items, and
+form rows consistently aligned across macOS, Windows, and Raspberry Pi OS.
