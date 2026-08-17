@@ -194,3 +194,18 @@
 - Added automatic contrasting selection text for bright/dark accent colors.
 - Preserved status coloring for INFO, WATCH, WARNING, and CRITICAL rows without sacrificing readability.
 - No API counting or quota logic changed in this patch.
+
+## 2.2.0
+- Extended application themes across the entire Settings interface.
+- Added recursive ThemeStyler support for tabs, panels, labels, inputs, password fields, text areas, checkboxes, combo boxes, buttons, sliders, tables, headers, scroll panes, viewports, and separators.
+- Settings now previews the selected theme live across the full dialog before Save & Apply.
+- Added universal theme support to Find Location and Find Team dialogs.
+- API Usage now participates in the same universal settings-theme infrastructure while preserving usage-status colors.
+- Added Holiday • Christmas.
+- Added Holiday • Halloween.
+- Added Holiday • Thanksgiving.
+- Added Holiday • Independence Day.
+- Added Holiday • Valentine’s Day.
+- Added Holiday • St. Patrick’s Day.
+- Added Seasonal • Winter Frost.
+- Existing operational themes remain available.

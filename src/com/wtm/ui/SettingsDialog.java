@@ -20,6 +20,7 @@ import java.util.function.Consumer;
 public final class SettingsDialog extends JDialog {
     private final AppConfig cfg;
     private final Consumer<AppConfig> onSave;
+    private final AppTheme originalTheme;
 
     private final JTextField header=new JTextField();
     private final JTextField ticker=new JTextField();
@@ -105,6 +106,7 @@ public final class SettingsDialog extends JDialog {
         super(owner,"Weather & Traffic Monitor Settings",true);
         this.cfg=cfg;
         this.onSave=onSave;
+        this.originalTheme=AppTheme.fromId(cfg.themeId);
 
         setSize(980,790);
         setMinimumSize(new Dimension(860,650));
@@ -129,6 +131,7 @@ public final class SettingsDialog extends JDialog {
 
         loadValues();
         updateAutomaticSevereControls();
+        applySettingsTheme((AppTheme)themeSelector.getSelectedItem());
     }
 
     private JPanel general(){
@@ -145,8 +148,21 @@ public final class SettingsDialog extends JDialog {
         themePreview.setBorder(BorderFactory.createTitledBorder("Theme preview"));
         addFull(p,y++,themePreview);
 
-        themeSelector.addActionListener(e->updateThemePreview());
+        themeSelector.addActionListener(e->{
+            updateThemePreview();
+            applySettingsTheme((AppTheme)themeSelector.getSelectedItem());
+        });
         return p;
+    }
+
+    /**
+     * Live-preview the chosen theme across the entire Settings window.
+     * Nothing is persisted until Save & Apply.
+     */
+    private void applySettingsTheme(AppTheme theme){
+        if(theme==null)theme=originalTheme;
+        ThemeStyler.apply(this,theme);
+        repaint();
     }
 
     private void updateThemePreview(){
@@ -594,7 +610,10 @@ public final class SettingsDialog extends JDialog {
         JButton exit=new JButton("Exit Application");
         exit.addActionListener(e->System.exit(0));
         JButton cancel=new JButton("Cancel");
-        cancel.addActionListener(e->dispose());
+        cancel.addActionListener(e->{
+            Theme.setActive(originalTheme.id());
+            dispose();
+        });
         JButton save=new JButton("Save & Apply");
         save.addActionListener(e->save());
         p.add(exit);

@@ -132,6 +132,7 @@ public final class ApiUsagePanel extends JPanel {
             }
         }
 
+        ThemeStyler.apply(this,Theme.active());
         repaint();
     }
 

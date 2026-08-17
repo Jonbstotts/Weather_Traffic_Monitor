@@ -235,3 +235,17 @@ Current reference limits built into this release:
 The API Usage screen now fully follows the selected application theme, including JTable rows,
 column headers, grid lines, selection colors, viewport background, buttons, and status text.
 This resolves pale text becoming unreadable against Swing's default light table background.
+
+## Universal themes in v2.2.0
+Themes now apply to both the fullscreen dashboard and the complete Settings experience. The
+Settings window previews the selected theme live before it is saved, including tabs, forms,
+tables, buttons, API Usage, Find Location, and Find Team dialogs.
+
+New holiday and seasonal presets:
+- Holiday • Christmas
+- Holiday • Halloween
+- Holiday • Thanksgiving
+- Holiday • Independence Day
+- Holiday • Valentine’s Day
+- Holiday • St. Patrick’s Day
+- Seasonal • Winter Frost

@@ -1,5 +1,5 @@
 Manifest-Version: 1.0
 Main-Class: com.wtm.app.Main
 Implementation-Title: Weather & Traffic Monitor
-Implementation-Version: 2.1.1
+Implementation-Version: 2.2.0
 
