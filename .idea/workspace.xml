@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="936686b2-079a-458c-9c77-52f54b0f263a" name="Changes" comment="ui updates">
+    <list default="true" id="936686b2-079a-458c-9c77-52f54b0f263a" name="Changes" comment="added team celebration feature and holiday overlays.">
       <change beforePath="$PROJECT_DIR$/ARCHITECTURE.md" beforeDir="false" afterPath="$PROJECT_DIR$/ARCHITECTURE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/CHANGELOG.md" beforeDir="false" afterPath="$PROJECT_DIR$/CHANGELOG.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/MANIFEST.MF" beforeDir="false" afterPath="$PROJECT_DIR$/MANIFEST.MF" afterDir="false" />
@@ -12,9 +12,12 @@
       <change beforePath="$PROJECT_DIR$/WeatherTrafficMonitor.jar" beforeDir="false" afterPath="$PROJECT_DIR$/WeatherTrafficMonitor.jar" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/wtm/config/AppConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/config/AppConfig.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/wtm/config/ConfigService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/config/ConfigService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/wtm/sports/TheSportsDbService.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/sports/TheSportsDbService.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/DashboardFrame.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/DashboardFrame.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/DashboardIcon.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/DashboardIcon.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/MainShowcasePanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/MainShowcasePanel.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/SettingsDialog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/SettingsDialog.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/com/wtm/ui/SportsScorePanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/com/wtm/ui/SportsScorePanel.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,28 +56,29 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.MCP Project settings loaded&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.typescript.service.memoryLimit.init&quot;: &quot;true&quot;,
-    &quot;codeWithMe.voiceChat.enabledByDefault&quot;: &quot;false&quot;,
-    &quot;com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/jonathanstotts/Developer/Weather-Traffic-Monitor-v1&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;to.speed.mode.migration.done&quot;: &quot;true&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "junie.onboarding.icon.badge.shown": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/jonathanstotts/Developer/Weather-Traffic-Monitor-v1",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "org.jetbrains.plugins.github.ui.GithubSettingsConfigurable",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RunManager">
     <configuration default="true" type="JetRunConfigurationType">
       <module name="Weather-Traffic-Monitor-v1" />
@@ -165,7 +169,31 @@
       <option name="project" value="LOCAL" />
       <updated>1786971370294</updated>
     </task>
-    <option name="localTasksCounter" value="9" />
+    <task id="LOCAL-00009" summary="added team celebration feature and holiday overlays.">
+      <option name="closed" value="true" />
+      <created>1786975753504</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1786975753504</updated>
+    </task>
+    <task id="LOCAL-00010" summary="added team celebration feature and holiday overlays.">
+      <option name="closed" value="true" />
+      <created>1786976846232</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1786976846232</updated>
+    </task>
+    <task id="LOCAL-00011" summary="added team celebration feature and holiday overlays.">
+      <option name="closed" value="true" />
+      <created>1786977724900</created>
+      <option name="number" value="00011" />
+      <option name="presentableId" value="LOCAL-00011" />
+      <option name="project" value="LOCAL" />
+      <updated>1786977724900</updated>
+    </task>
+    <option name="localTasksCounter" value="12" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -185,6 +213,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="first commit" />
     <MESSAGE value="ui updates" />
-    <option name="LAST_COMMIT_MESSAGE" value="ui updates" />
+    <MESSAGE value="added team celebration feature and holiday overlays." />
+    <option name="LAST_COMMIT_MESSAGE" value="added team celebration feature and holiday overlays." />
   </component>
 </project>

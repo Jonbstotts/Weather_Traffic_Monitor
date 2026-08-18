@@ -13,11 +13,11 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * TheSportsDB adapter used by configurable Sports Score dashboard blocks.
+ * TheSportsDB adapter used by configurable Sports Schedule dashboard blocks.
  *
- * Free v1 access supports team artwork and schedule/recent-result data. When a
- * premium key and Premium Live Scores are enabled, the adapter first checks the
- * v2 livescore endpoint and falls back to v1 schedule data when no game is live.
+ * The warehouse display is primarily viewed during the work week, so sports
+ * blocks intentionally focus on upcoming scheduled games instead of live
+ * scores. Team search/artwork can still use the configured provider tier.
  */
 public final class TheSportsDbService {
     private final HttpService http;
@@ -111,19 +111,52 @@ public final class TheSportsDbService {
         return enc(value).replace("+","%20");
     }
 
-    public SportsGame fetch(SportsConfig cfg,String configuredKey,boolean premium) throws Exception {
-        String key=(configuredKey==null||configuredKey.isBlank())?"123":configuredKey.trim();
+    /**
+     * Returns the next scheduled events for a configured team.
+     *
+     * The provider's eventsnext endpoint normally returns several upcoming
+     * games. Results are sorted chronologically and limited for dashboard use.
+     */
+    public List<SportsGame> fetchUpcoming(
+            SportsConfig cfg,
+            String configuredKey,
+            int limit
+    ) throws Exception {
+        String key=(configuredKey==null||configuredKey.isBlank())
+                ?"123":configuredKey.trim();
 
-        if(premium && !key.equals("123")){
-            SportsGame live=findPremiumLive(cfg,key);
-            if(live!=null) return withBadges(live,key);
-        }
+        List<SportsGame> events=parseEventList(
+                v1(key,"eventsnext.php?id="+enc(cfg.teamId())),
+                "Upcoming schedule"
+        );
 
-        SportsGame next=firstEvent(v1(key,"eventsnext.php?id="+enc(cfg.teamId())),"Next / schedule");
-        SportsGame last=firstEvent(v1(key,"eventslast.php?id="+enc(cfg.teamId())),"Recent / final");
+        Instant now=Instant.now().minus(Duration.ofHours(6));
 
-        SportsGame selected=chooseRelevant(next,last);
-        return selected==null ? unavailable(cfg,premium) : withBadges(selected,key);
+        events=events.stream()
+                .filter(g->!g.finished())
+                .filter(g->g.startTime()==null || !g.startTime().isBefore(now))
+                .sorted(Comparator.comparing(
+                        SportsGame::startTime,
+                        Comparator.nullsLast(Comparator.naturalOrder())
+                ))
+                .limit(Math.max(1,limit))
+                .map(g->withBadges(g,key))
+                .toList();
+
+        return events;
+    }
+
+    /**
+     * Retained for source compatibility with older integrations. The first
+     * upcoming event is returned; live/recent results are no longer preferred.
+     */
+    public SportsGame fetch(
+            SportsConfig cfg,
+            String configuredKey,
+            boolean premium
+    ) throws Exception {
+        List<SportsGame> upcoming=fetchUpcoming(cfg,configuredKey,1);
+        return upcoming.isEmpty()?unavailable(cfg,false):upcoming.get(0);
     }
 
     private SportsGame findPremiumLive(SportsConfig cfg,String key) throws Exception {

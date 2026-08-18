@@ -3,6 +3,8 @@ package com.wtm.ui;
 import com.wtm.config.AppConfig;
 import com.wtm.map.TileMapPanel;
 import com.wtm.model.CelebrationConfig;
+import com.wtm.model.OperationAnnouncement;
+import com.wtm.service.OperationsCalendarService;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -14,15 +16,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.time.LocalDate;
-import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Consumer;
 
 /**
  * Configurable large-format content region.
  *
- * The live map is always the first item. If enabled, announcement images are
- * added after it and rotated on a site-defined interval.
+ * The live map is always the first item. Uploaded media, automatically
+ * generated Operations Calendar notices, and team-recognition cards are added
+ * to the same site-defined rotation when applicable.
  */
 public final class MainShowcasePanel extends RoundedPanel {
     private final CardLayout cards=new CardLayout();
@@ -35,9 +37,8 @@ public final class MainShowcasePanel extends RoundedPanel {
     private int currentIndex=0;
     private Timer rotationTimer;
     private Consumer<Boolean> celebrationListener=active->{};
-    private final Set<String> celebratedThisSession=new HashSet<>();
-    private final Set<String> celebrationCardIds=new HashSet<>();
-    private final Set<String> celebrationEffectCardIds=new HashSet<>();
+    private final Set<String> celebrationCardIds=new java.util.HashSet<>();
+    private final Set<String> celebrationEffectCardIds=new java.util.HashSet<>();
     private LocalDate builtForDate=LocalDate.now();
 
     public MainShowcasePanel(AppConfig config, TileMapPanel map){
@@ -61,8 +62,27 @@ public final class MainShowcasePanel extends RoundedPanel {
     }
 
     /**
-     * Called with true when a celebration card is first shown this application
-     * session. DashboardFrame uses this to fire a short confetti overlay.
+     * Stops timers/listeners owned by this showcase before the dashboard
+     * discards it during a Settings/theme/layout rebuild.
+     *
+     * Without this lifecycle cleanup, an old invisible showcase could keep its
+     * Swing rotation Timer alive and later fire a celebration callback even
+     * though its celebration card was no longer on screen.
+     */
+    public void disposeShowcase(){
+        if(rotationTimer!=null){
+            rotationTimer.stop();
+            rotationTimer=null;
+        }
+
+        // Break the callback reference as an additional safeguard against an
+        // obsolete showcase triggering dashboard overlay effects.
+        celebrationListener=active->{};
+    }
+
+    /**
+     * Called whenever a celebration card rotates into view. DashboardFrame uses
+     * the boolean to decide whether this team member's celebration effect is enabled.
      */
     public void setCelebrationListener(Consumer<Boolean> listener){
         this.celebrationListener=listener==null?active->{}:listener;
@@ -96,23 +116,68 @@ public final class MainShowcasePanel extends RoundedPanel {
             }
         }
 
-        celebrationCardIds.clear();
-        celebrationEffectCardIds.clear();
         LocalDate today=LocalDate.now();
         builtForDate=today;
+
+        /*
+         * Operations Calendar announcements are generated dynamically. Connected
+         * date ranges are already grouped by OperationsCalendarService, so one
+         * holiday period becomes one showcase card.
+         */
+        int operationIndex=0;
+        for(OperationAnnouncement announcement:
+                OperationsCalendarService.announcements(config,today)){
+            String id="OPERATIONS_"+(operationIndex++)+"_"
+                    +announcement.startDate()+"_"+announcement.endDate();
+
+            deck.add(
+                    new OperationsAnnouncementSlidePanel(
+                            config,announcement,today),
+                    id
+            );
+            cardIds.add(id);
+        }
+
+        celebrationCardIds.clear();
+        celebrationEffectCardIds.clear();
         if(config.celebrationsEnabled){
             int index=0;
             for(CelebrationConfig c:config.celebrations){
                 boolean birthday=c.birthdayToday(today);
-                boolean anniversary=c.anniversaryToday(today) && c.anniversaryYears(today)>0;
-                if(!birthday&&!anniversary) continue;
+                boolean anniversary=c.anniversaryToday(today)
+                        && c.anniversaryYears(today)>0;
 
-                String id="CELEBRATION_"+(index++)+"_"+today;
-                CelebrationSlidePanel slide=new CelebrationSlidePanel(c,birthday,anniversary,today);
-                deck.add(slide,id);
-                cardIds.add(id);
-                celebrationCardIds.add(id);
-                if(c.celebrationEffect()) celebrationEffectCardIds.add(id);
+                // Birthday/anniversary recognition remains date-specific and
+                // may share one card if both occur on the same date.
+                if(birthday||anniversary){
+                    String id="CELEBRATION_DATE_"+(index++)+"_"+today;
+                    CelebrationSlidePanel slide=
+                            new CelebrationSlidePanel(c,birthday,anniversary,today);
+                    deck.add(slide,id);
+                    cardIds.add(id);
+                    celebrationCardIds.add(id);
+                    if(c.celebrationEffect())
+                        celebrationEffectCardIds.add(id);
+                }
+
+                // Employee of the Month is intentionally a separate card and
+                // remains active for the entire assigned month.
+                if(c.employeeOfMonthToday(today)){
+                    String id="CELEBRATION_EOM_"+(index++)+"_"
+                            +today.getYear()+"_"+today.getMonthValue();
+
+                    EmployeeOfMonthSlidePanel slide=
+                            new EmployeeOfMonthSlidePanel(
+                                    c,
+                                    java.time.YearMonth.from(today)
+                            );
+
+                    deck.add(slide,id);
+                    cardIds.add(id);
+                    celebrationCardIds.add(id);
+                    if(c.celebrationEffect())
+                        celebrationEffectCardIds.add(id);
+                }
             }
         }
 
@@ -123,9 +188,9 @@ public final class MainShowcasePanel extends RoundedPanel {
     }
 
     /**
-     * Called periodically by DashboardFrame. This makes birthdays and work
-     * anniversaries appear/disappear correctly even if the display stays
-     * running across midnight for multiple days.
+     * Called periodically by DashboardFrame. This keeps Operations Calendar
+     * announcements, birthdays, work anniversaries, and month-based recognition
+     * correct while a display remains running across date boundaries.
      */
     public void refreshDateDrivenContent(){
         LocalDate today=LocalDate.now();
@@ -158,7 +223,7 @@ public final class MainShowcasePanel extends RoundedPanel {
         String id=cardIds.get(currentIndex);
         cards.show(deck,id);
 
-        if(celebrationCardIds.contains(id) && celebratedThisSession.add(id)){
+        if(celebrationCardIds.contains(id)){
             celebrationListener.accept(celebrationEffectCardIds.contains(id));
         }
     }
@@ -191,7 +256,7 @@ public final class MainShowcasePanel extends RoundedPanel {
 
     private JComponent createMediaComponent(Path file){
         try{
-            BufferedImage image=ImageIO.read(file.toFile());
+            BufferedImage image=OrientedImageLoader.load(file);
             if(image==null) return null;
 
             JPanel panel=new JPanel(new BorderLayout());

@@ -4,11 +4,15 @@ import com.wtm.model.Location;
 import com.wtm.model.RouteConfig;
 import com.wtm.model.SportsConfig;
 import com.wtm.model.CelebrationConfig;
+import com.wtm.model.OperationEvent;
+import com.wtm.model.OperationType;
 import com.wtm.ui.AppTheme;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.DayOfWeek;
 
 /** Loads and saves human-readable .properties configuration in the user's home directory. */
 public final class ConfigService {
@@ -65,7 +69,11 @@ public final class ConfigService {
             cfg.alertRefreshMinutes = integer(p, "alertRefreshMinutes", 2);
             cfg.radarRefreshMinutes = integer(p, "radarRefreshMinutes", 5);
             cfg.trafficRefreshMinutes = integer(p, "trafficRefreshMinutes", 5);
-            cfg.sportsRefreshMinutes = Math.max(2, integer(p, "sportsRefreshMinutes", 5));
+            // Upcoming schedules do not need live-score polling frequency.
+            // Existing installations using the old 2/5/10-minute score cadence
+            // migrate to a conservative 30-minute schedule refresh.
+            int savedSportsRefresh=integer(p,"sportsRefreshMinutes",30);
+            cfg.sportsRefreshMinutes=savedSportsRefresh<15?30:savedSportsRefresh;
             cfg.liveSevereWeatherMode = bool(p, "liveSevereWeatherMode", false);
             cfg.automaticSevereWeatherMode = bool(p, "automaticSevereWeatherMode", true);
             cfg.autoDisableSevereWeatherMode = bool(p, "autoDisableSevereWeatherMode", true);
@@ -75,7 +83,36 @@ public final class ConfigService {
             cfg.severeWeatherMapPriority = bool(p, "severeWeatherMapPriority", true);
             cfg.themeOverlayEffects = bool(p, "themeOverlayEffects", true);
             cfg.overlayIntensity = p.getProperty("overlayIntensity", "LOW").trim().toUpperCase();
+            cfg.overlayPerformanceMode = p.getProperty(
+                    "overlayPerformanceMode","AUTOMATIC").trim().toUpperCase();
             cfg.celebrationsEnabled = bool(p, "celebrationsEnabled", true);
+            cfg.operationsAnnouncementsEnabled =
+                    bool(p,"operationsAnnouncementsEnabled",true);
+            cfg.operationsDefaultLeadDays =
+                    Math.max(0,integer(p,"operationsDefaultLeadDays",14));
+
+            try{
+                cfg.normalOperatingStart=LocalTime.parse(
+                        p.getProperty("normalOperatingStart","07:30"));
+            }catch(Exception ignored){}
+
+            try{
+                cfg.normalOperatingEnd=LocalTime.parse(
+                        p.getProperty("normalOperatingEnd","16:00"));
+            }catch(Exception ignored){}
+
+            cfg.normalOperatingDays.clear();
+            String normalDays=p.getProperty(
+                    "normalOperatingDays","MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY");
+            for(String day:normalDays.split(",")){
+                try{cfg.normalOperatingDays.add(DayOfWeek.valueOf(day.trim()));}
+                catch(Exception ignored){}
+            }
+            if(cfg.normalOperatingDays.isEmpty()){
+                cfg.normalOperatingDays.addAll(java.util.List.of(
+                        DayOfWeek.MONDAY,DayOfWeek.TUESDAY,DayOfWeek.WEDNESDAY,
+                        DayOfWeek.THURSDAY,DayOfWeek.FRIDAY));
+            }
             cfg.celebrationMediaDirectory = Path.of(p.getProperty(
                     "celebrationMediaDirectory",
                     cfg.celebrationMediaDirectory.toString()));
@@ -137,9 +174,55 @@ public final class ConfigService {
                         p.getProperty(prefix+".photoPath",""),
                         bool(p,prefix+".showBirthday",true),
                         bool(p,prefix+".showAnniversary",true),
+                        integer(p,prefix+".employeeOfMonthYear",0),
+                        integer(p,prefix+".employeeOfMonthMonth",0),
                         bool(p,prefix+".celebrationEffect",true),
                         bool(p,prefix+".enabled",true)
                 ));
+            }
+
+            cfg.operationEvents.clear();
+            int operationCount=integer(p,"operations.count",0);
+            for(int i=0;i<operationCount;i++){
+                String prefix="operation."+i;
+
+                LocalDate start=null;
+                LocalDate end=null;
+                LocalTime startTime=null;
+                LocalTime endTime=null;
+
+                try{start=LocalDate.parse(p.getProperty(prefix+".startDate",""));}
+                catch(Exception ignored){}
+                try{end=LocalDate.parse(p.getProperty(prefix+".endDate",""));}
+                catch(Exception ignored){}
+
+                if(start!=null && end==null)end=start;
+
+                try{
+                    String value=p.getProperty(prefix+".startTime","").trim();
+                    if(!value.isBlank())startTime=LocalTime.parse(value);
+                }catch(Exception ignored){}
+
+                try{
+                    String value=p.getProperty(prefix+".endTime","").trim();
+                    if(!value.isBlank())endTime=LocalTime.parse(value);
+                }catch(Exception ignored){}
+
+                if(start!=null && end!=null){
+                    try{
+                        cfg.operationEvents.add(new OperationEvent(
+                                p.getProperty(prefix+".name","Operations Event"),
+                                start,
+                                end,
+                                OperationType.from(
+                                        p.getProperty(prefix+".type","MODIFIED_HOURS")),
+                                startTime,
+                                endTime,
+                                Math.max(0,integer(p,prefix+".leadDays",0)),
+                                bool(p,prefix+".enabled",true)
+                        ));
+                    }catch(Exception ignored){}
+                }
             }
 
             cfg.widgetTypes.clear();
@@ -180,7 +263,28 @@ public final class ConfigService {
             p.setProperty("severeWeatherMapPriority", Boolean.toString(cfg.severeWeatherMapPriority));
             p.setProperty("themeOverlayEffects", Boolean.toString(cfg.themeOverlayEffects));
             p.setProperty("overlayIntensity", cfg.overlayIntensity);
+            p.setProperty("overlayPerformanceMode", cfg.overlayPerformanceMode);
             p.setProperty("celebrationsEnabled", Boolean.toString(cfg.celebrationsEnabled));
+            p.setProperty(
+                    "operationsAnnouncementsEnabled",
+                    Boolean.toString(cfg.operationsAnnouncementsEnabled));
+            p.setProperty(
+                    "operationsDefaultLeadDays",
+                    Integer.toString(cfg.operationsDefaultLeadDays));
+            p.setProperty(
+                    "normalOperatingStart",
+                    cfg.normalOperatingStart.toString());
+            p.setProperty(
+                    "normalOperatingEnd",
+                    cfg.normalOperatingEnd.toString());
+            p.setProperty(
+                    "normalOperatingDays",
+                    cfg.normalOperatingDays.stream()
+                            .map(Enum::name)
+                            .sorted()
+                            .reduce((a,b)->a+","+b)
+                            .orElse(""));
+
             p.setProperty("celebrationMediaDirectory", cfg.celebrationMediaDirectory.toString());
             p.setProperty("headerText", cfg.headerText);
             p.setProperty("tickerText", cfg.tickerText);
@@ -234,8 +338,32 @@ public final class ConfigService {
                 p.setProperty(prefix+".photoPath",c.photoPath()==null?"":c.photoPath());
                 p.setProperty(prefix+".showBirthday",Boolean.toString(c.showBirthday()));
                 p.setProperty(prefix+".showAnniversary",Boolean.toString(c.showAnniversary()));
+                p.setProperty(prefix+".employeeOfMonthYear",Integer.toString(c.employeeOfMonthYear()));
+                p.setProperty(prefix+".employeeOfMonthMonth",Integer.toString(c.employeeOfMonthMonth()));
                 p.setProperty(prefix+".celebrationEffect",Boolean.toString(c.celebrationEffect()));
                 p.setProperty(prefix+".enabled",Boolean.toString(c.enabled()));
+            }
+
+            p.setProperty(
+                    "operations.count",
+                    Integer.toString(cfg.operationEvents.size()));
+
+            for(int i=0;i<cfg.operationEvents.size();i++){
+                OperationEvent event=cfg.operationEvents.get(i);
+                String prefix="operation."+i;
+
+                p.setProperty(prefix+".name",event.name()==null?"":event.name());
+                p.setProperty(prefix+".startDate",event.startDate().toString());
+                p.setProperty(prefix+".endDate",event.endDate().toString());
+                p.setProperty(prefix+".type",event.type().name());
+                p.setProperty(
+                        prefix+".startTime",
+                        event.startTime()==null?"":event.startTime().toString());
+                p.setProperty(
+                        prefix+".endTime",
+                        event.endTime()==null?"":event.endTime().toString());
+                p.setProperty(prefix+".leadDays",Integer.toString(event.leadDays()));
+                p.setProperty(prefix+".enabled",Boolean.toString(event.enabled()));
             }
 
             p.setProperty("widgets.count", Integer.toString(cfg.widgetTypes.size()));

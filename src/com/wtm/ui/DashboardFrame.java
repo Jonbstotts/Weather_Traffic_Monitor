@@ -64,7 +64,7 @@ public final class DashboardFrame extends JFrame {
     private final javax.swing.Timer tickerTimer;
     private final Map<String,WeatherSnapshot> weather = new ConcurrentHashMap<>();
     private final Map<Integer,RouteStatus> routes = new ConcurrentHashMap<>();
-    private final Map<Integer,SportsGame> sportsGames = new ConcurrentHashMap<>();
+    private final Map<Integer,List<SportsGame>> sportsSchedules = new ConcurrentHashMap<>();
     private volatile List<WeatherAlert> alerts=List.of();
     private volatile RadarFrame radarFrame;
     private volatile Instant lastSuccess;
@@ -88,6 +88,16 @@ public final class DashboardFrame extends JFrame {
     }
 
     private void buildUi(){
+        /*
+         * Settings and theme changes rebuild the dashboard in place. Always
+         * dispose the previous Main Showcase first so its Swing rotation timer
+         * cannot continue running invisibly and emit celebration events later.
+         */
+        if(mainShowcase!=null){
+            mainShowcase.disposeShowcase();
+            mainShowcase=null;
+        }
+
         // Resolve the saved manual theme against optional date-driven holiday
         // switching before constructing any themed component.
         AppTheme runtimeTheme=effectiveTheme();
@@ -126,7 +136,8 @@ public final class DashboardFrame extends JFrame {
             overlayEffects.configure(
                     runtimeTheme,
                     config.themeOverlayEffects,
-                    config.overlayIntensity
+                    config.overlayIntensity,
+                    config.overlayPerformanceMode
             );
             overlayEffects.setSevereSuppressed(
                     automaticLiveWeatherActive && config.severeWeatherMapPriority
@@ -333,9 +344,9 @@ public final class DashboardFrame extends JFrame {
 
         if(type.startsWith("SPORTS_")){
             content.removeAll();
-            SportsScorePanel scorePanel=new SportsScorePanel(http);
-            p.putClientProperty("sportsPanel",scorePanel);
-            content.add(scorePanel,BorderLayout.CENTER);
+            SportsSchedulePanel schedulePanel=new SportsSchedulePanel(http);
+            p.putClientProperty("sportsPanel",schedulePanel);
+            content.add(schedulePanel,BorderLayout.CENTER);
         }else if("MEDIA".equals(type)){
             content.removeAll();
             content.add(mediaComponent(slot),BorderLayout.CENTER);
@@ -372,7 +383,9 @@ public final class DashboardFrame extends JFrame {
         }
         if(type.startsWith("SPORTS_")){
             int i=parseSportsIndex(type);
-            return i>=0&&i<config.sports.size()?"SPORTS • "+config.sports.get(i).name().toUpperCase():"SPORTS SCORE";
+            return i>=0&&i<config.sports.size()
+                    ?"SCHEDULE • "+config.sports.get(i).name().toUpperCase()
+                    :"SPORTS SCHEDULE";
         }
         if(type.startsWith("WEATHER_LOCATION_")){
             int i=parseLocationIndex(type);
@@ -429,9 +442,9 @@ public final class DashboardFrame extends JFrame {
 
             if(type.startsWith("SPORTS_")){
                 int i=parseSportsIndex(type);
-                SportsScorePanel scorePanel=(SportsScorePanel)((JComponent)p).getClientProperty("sportsPanel");
-                if(scorePanel!=null && i>=0 && i<config.sports.size())
-                    scorePanel.updateGame(sportsGames.get(i),config.sports.get(i));
+                SportsSchedulePanel schedulePanel=(SportsSchedulePanel)((JComponent)p).getClientProperty("sportsPanel");
+                if(schedulePanel!=null && i>=0 && i<config.sports.size())
+                    schedulePanel.updateSchedule(sportsSchedules.get(i),config.sports.get(i));
                 continue;
             }
 
@@ -652,24 +665,23 @@ public final class DashboardFrame extends JFrame {
         for(int i=0;i<config.sports.size();i++){
             try{
                 SportsConfig cfg=config.sports.get(i);
-                SportsGame game=sportsService.fetch(cfg,config.sportsApiKey,config.sportsPremiumLiveScores);
-                // The configured team's badge is reliable from the numeric team ID;
-                // use it when the event payload omits that side's artwork.
-                String badge=sportsService.configuredTeamBadge(cfg,config.sportsApiKey);
-                if(game!=null && badge!=null && !badge.isBlank()){
-                    boolean home=game.homeTeam()!=null && game.homeTeam().equalsIgnoreCase(cfg.teamName());
-                    boolean away=game.awayTeam()!=null && game.awayTeam().equalsIgnoreCase(cfg.teamName());
-                    if(home && (game.homeBadgeUrl()==null||game.homeBadgeUrl().isBlank()))
-                        game=new SportsGame(game.league(),game.homeTeamId(),game.awayTeamId(),game.homeTeam(),game.awayTeam(),game.homeScore(),game.awayScore(),game.status(),game.progress(),game.startTime(),badge,game.awayBadgeUrl(),game.live(),game.finished(),game.updatedAt(),game.dataMode());
-                    else if(away && (game.awayBadgeUrl()==null||game.awayBadgeUrl().isBlank()))
-                        game=new SportsGame(game.league(),game.homeTeamId(),game.awayTeamId(),game.homeTeam(),game.awayTeam(),game.homeScore(),game.awayScore(),game.status(),game.progress(),game.startTime(),game.homeBadgeUrl(),badge,game.live(),game.finished(),game.updatedAt(),game.dataMode());
-                }
-                sportsGames.put(i,game);
+
+                // A schedule block needs only a few future games. This avoids
+                // live-score polling during the work week and substantially
+                // reduces sports API traffic.
+                List<SportsGame> games=sportsService.fetchUpcoming(
+                        cfg,
+                        config.sportsApiKey,
+                        3
+                );
+
+                sportsSchedules.put(i,games);
                 lastSuccess=Instant.now();
             }catch(Exception ex){
-                System.err.println("Sports refresh failed: "+ex.getMessage());
+                System.err.println("Sports schedule refresh failed: "+ex.getMessage());
             }
         }
+
         SwingUtilities.invokeLater(this::updateWidgets);
     }
 
@@ -788,7 +800,8 @@ public final class DashboardFrame extends JFrame {
             overlayEffects.configure(
                     effectiveTheme(),
                     c.themeOverlayEffects,
-                    c.overlayIntensity
+                    c.overlayIntensity,
+                    c.overlayPerformanceMode
             );
             overlayEffects.setSevereSuppressed(
                     automaticLiveWeatherActive && c.severeWeatherMapPriority

@@ -4,7 +4,9 @@ import com.wtm.model.Location;
 import com.wtm.model.RouteConfig;
 import com.wtm.model.SportsConfig;
 import com.wtm.model.CelebrationConfig;
+import com.wtm.model.OperationEvent;
 import java.nio.file.Path;
+import java.time.*;
 import java.util.*;
 
 /**
@@ -101,6 +103,12 @@ public final class AppConfig {
     /** LOW, MEDIUM, or HIGH particle density. */
     public String overlayIntensity = "LOW";
 
+    /**
+     * Overlay rendering profile: AUTOMATIC, HIGH_QUALITY, BALANCED, PERFORMANCE.
+     * AUTOMATIC adapts ambient effects based on measured frame cost.
+     */
+    public String overlayPerformanceMode = "AUTOMATIC";
+
     /** Allow generated birthday/work-anniversary cards in Main Showcase. */
     public boolean celebrationsEnabled = true;
 
@@ -110,6 +118,28 @@ public final class AppConfig {
 
     /** Local team-recognition records. */
     public final List<CelebrationConfig> celebrations = new ArrayList<>();
+
+    /** Automatically generate Main Showcase announcements from the Operations Calendar. */
+    public boolean operationsAnnouncementsEnabled = true;
+
+    /** Site default announcement lead time. Individual events may override it. */
+    public int operationsDefaultLeadDays = 14;
+
+    /** Normal site operating schedule, used for comparison/resume messaging. */
+    public LocalTime normalOperatingStart = LocalTime.of(7,30);
+    public LocalTime normalOperatingEnd = LocalTime.of(16,0);
+    public final EnumSet<DayOfWeek> normalOperatingDays =
+            EnumSet.of(
+                    DayOfWeek.MONDAY,
+                    DayOfWeek.TUESDAY,
+                    DayOfWeek.WEDNESDAY,
+                    DayOfWeek.THURSDAY,
+                    DayOfWeek.FRIDAY
+            );
+
+    /** Full closures, limited-service periods, and temporary modified hours. */
+    public final List<OperationEvent> operationEvents = new ArrayList<>();
+
 
 
     /**

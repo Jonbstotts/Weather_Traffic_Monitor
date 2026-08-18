@@ -277,3 +277,125 @@
 - Upgraded St. Patrick's Day overlay with shaded dimensional shamrocks, green glow, detailed stems/highlights, and independent gold sparkle/glint particles.
 - Existing Thanksgiving multi-shape leaves, Independence Day fireworks, Christmas snow/frost, celebration confetti, and severe-weather suppression remain intact.
 - Automatic severe-weather map priority continues to suppress every decorative holiday/celebration effect immediately.
+
+## 2.4.1
+- Fixed sideways/rotated celebration photos from phones and cameras.
+- Added orientation-aware JPEG loading with direct support for EXIF Orientation tag 0x0112.
+- Supports all eight standard EXIF orientation states, including 90/180/270-degree rotation and mirrored/transposed variants.
+- Celebration photos are normalized before scaling into birthday/work-anniversary slides.
+- Applied the same orientation-aware loader to Main Showcase announcement JPG/JPEG images so phone-originated media displays correctly there as well.
+- Upgraded celebration-photo scaling interpolation from bilinear to bicubic/high-quality rendering.
+- No celebration scheduling, overlay, theme, severe-weather, API, or configuration behavior changed.
+
+## 2.4.2
+- Reworked celebration confetti from a fixed-duration effect into a finite physics-driven shower.
+- Confetti now triggers every time an enabled birthday/work-anniversary slide rotates into view.
+- Each trigger releases one complete batch; particles are no longer replenished on a timer.
+- Every confetti piece remains visible until it naturally falls beyond the display boundary.
+- Confetti continues across slideshow transitions, including when the celebration card advances to the map or another announcement.
+- Holiday theme overlays continue independently while celebration confetti is falling.
+- Seasonal overlay maintenance no longer clears active celebration confetti.
+- Confetti spawn positions are staggered above the display for a more natural cascading entrance.
+- Severe-weather priority remains the only runtime condition that immediately clears/suppresses celebration confetti.
+
+## 2.4.3
+- Fixed phantom celebration confetti that could appear after opening/saving Settings.
+- Root cause: dashboard rebuilds replaced the visible Main Showcase but did not stop the old showcase's Swing rotation timer.
+- Old invisible showcase timers could continue advancing and later trigger their hidden celebration cards, causing confetti while no celebration slide was visible.
+- Added MainShowcasePanel.disposeShowcase() to stop its rotation timer and disconnect the celebration callback.
+- DashboardFrame now disposes the existing Main Showcase before every Settings/theme/layout rebuild.
+- This also prevents multiple hidden slideshow timers from accumulating after repeated Settings changes.
+- Celebration confetti still triggers normally whenever the currently visible celebration slide rotates into view.
+- Removed the drawn crystalline line strokes from Christmas/Winter Frost.
+- Retained the smooth frosted-edge gradient, snowflakes, and Christmas perimeter lights.
+
+## 2.5.0
+- Added Settings > General > Overlay Performance with Automatic, High Quality, Balanced, and Performance modes.
+- Added frame-budget-aware adaptive overlay rendering.
+- Automatic mode measures overlay paint cost with an exponential moving average and dynamically adjusts ambient density and animation cadence.
+- Automatic mode targets approximately 30 FPS under light load, 25 FPS under moderate load, and 20 FPS when overlay rendering becomes expensive.
+- Celebration confetti retains priority and is never removed by adaptive ambient-particle trimming.
+- When confetti is active, ambient holiday density is temporarily reduced to preserve smooth celebration motion.
+- Fireworks retain priority while their maximum simultaneous count is hardware-profile aware.
+- Added a hard ambient-particle budget that immediately trims seasonal decoration when adaptive load reduction is needed.
+- Halloween fog updates at a lower simulation cadence in Balanced/Performance/heavy Automatic modes while remaining continuously painted.
+- Simplified snowflake branch detail only under heavy Automatic load or Performance mode.
+- Cached the static Christmas/Winter Frost edge-gradient layer so its gradients are not rebuilt every animation frame.
+- Overlay rendering switches from quality-first Java2D hints to speed-first hints under constrained modes/heavy Automatic load.
+- Overlay timer cadence is profile-aware: High Quality ~30 FPS, Balanced ~25 FPS, Performance ~20 FPS, Automatic adaptive.
+- Idle overlay frames no longer request unnecessary repaints when no decorative animation is active.
+- Existing finite celebration-confetti behavior, holiday visuals, severe-weather suppression, and slideshow logic remain unchanged.
+
+## 2.5.1
+- Made the Settings window responsive to the current monitor's usable work area.
+- Settings now opens wider on larger displays so the full category navigation row is visible without manual resizing.
+- Added scrollable JTabbedPane navigation so future settings categories remain reachable on smaller displays instead of being clipped off-screen.
+- Initial settings width now considers both the monitor size and the preferred width of the current tab strip.
+- Settings height is also capped to the monitor's usable work area so the dialog remains practical on Raspberry Pi/TV and laptop displays.
+- Exit Application, Cancel, and Save & Apply remain fixed at the bottom of the dialog.
+- Redesigned the St. Patrick's Day shamrock overlay with three heart-shaped clover leaflets instead of circular lobes.
+- Added richer emerald gradients, leaflet outlines/veins, center depth, a curved tapered stem, subtle glow, and a small highlight for a more dimensional shamrock.
+- Existing gold glint particles, adaptive overlay performance, and severe-weather suppression remain unchanged.
+
+## 2.6.0
+- Changed configurable Sports dashboard blocks from live/recent score tracking to upcoming schedule tracking.
+- Sports blocks now request the configured team's upcoming schedule and display up to the next three games.
+- The nearest upcoming game is emphasized with date/time, home/away context, opponent, league, and configured-team logo when available.
+- Two additional future games are displayed as compact schedule rows when provider data is available.
+- Dashboard sports titles now use SCHEDULE rather than SPORTS SCORE.
+- Dashboard Block customization now labels configured sports choices as Upcoming Schedule.
+- Removed premium-live-score polling from normal dashboard refreshes, substantially reducing unnecessary sports API traffic during the work week.
+- Premium provider access remains available for enhanced team search where supported.
+- Sports refresh presets are now 15, 30, 60, 120, and 240 minutes, with 30–60 minutes recommended.
+- Existing installations with old sports refresh values below 15 minutes automatically migrate to a 30-minute schedule refresh.
+- Existing SportsConfig records and SPORTS_n dashboard widget IDs remain compatible; users do not need to recreate configured teams or blocks.
+- Legacy SportsScorePanel remains in source for compatibility but is no longer used by dashboard blocks.
+
+## 2.6.1
+- Fixed sports schedule text using the platform-default black foreground on dark and holiday themes.
+- SportsSchedulePanel now applies Theme.text() / Theme.muted() directly when asynchronously generated schedule labels are created.
+- Loading, no-schedule, primary matchup, and secondary upcoming-game rows now remain readable across every application theme.
+- Redesigned the Wind & Gusts dashboard icon with three clean airflow ribbons and rounded curls for improved readability at TV distance.
+- The new wind symbol removes the intersecting/stacked-arc appearance of the previous icon while preserving theme accent coloring.
+
+## 2.6.2
+- Refined the Wind & Gusts icon to use the familiar three-line meteorological wind-gust silhouette.
+- Added smooth upper, center, and lower curls modeled after conventional weather wind symbols.
+- Preserved vector rendering, rounded strokes, scaling, and active-theme accent coloring.
+
+## 2.7.0
+- Added Employee of the Month recognition to Settings > Team Celebrations.
+- Preserved the one-row-per-team-member model: Birthday, Anniversary, and Employee of the Month are independent recognition options on the same employee record.
+- Added an Employee of Month checkbox column to the Team Celebrations table.
+- Employee of the Month is single-select: checking one team member automatically clears the selection from every other row.
+- The selected recipient is stamped with the current month and year when Save & Apply is used.
+- Employee of the Month recognition automatically expires when the calendar moves into a different month.
+- Added a current-recipient status line showing the active month/year and selected employee.
+- Existing birthday opt-out and anniversary opt-out behavior remains independent.
+- Added a dedicated Employee of the Month Main Showcase card with month/year, employee photo or initials, trophy/star artwork, employee name, and congratulatory message.
+- Employee of the Month remains visible throughout its assigned month and is kept separate from same-day birthday/anniversary cards.
+- Employee of the Month participates in the existing per-employee Confetti setting and triggers the finite confetti shower whenever its slide rotates into view.
+- Existing celebration configuration files load safely; older employee rows simply begin with no Employee of the Month assignment.
+
+## 2.8.0
+- Added a new Settings > Operations Calendar module.
+- Added three reusable operating-status types: Full Closure, Limited Service, and Modified Hours.
+- Operations records support both one-day events and multi-day date ranges.
+- Added configurable normal operating hours and normal operating weekdays for each installation.
+- Added a site-wide default announcement lead time plus optional per-event Lead Days overrides.
+- Full Closure events automatically ignore work-hour fields.
+- Limited Service and Modified Hours require validated start/end work hours.
+- Time entry accepts common formats such as 7:30 AM, 11:00 AM, and 16:00.
+- Operations Calendar announcements are generated dynamically and require no uploaded announcement image.
+- Upcoming events automatically enter the Main Showcase when their announcement window begins.
+- Operations slides automatically disappear after the final event date; no manual cleanup is required.
+- Connected/adjacent operations dates are automatically grouped into one announcement slide.
+- Example supported grouping: Thanksgiving Full Closure followed by Friday Limited Service becomes one slide.
+- Multi-day Modified Hours remain in the slideshow throughout the entire configured date range and disappear after the range ends.
+- Generated slide wording changes automatically between UPCOMING, OPERATIONS SCHEDULE IN EFFECT, and FINAL DAY.
+- Added visual status treatment for Full Closure, Limited Service, and Modified Hours.
+- Modified-hours announcements compare temporary hours against the site's normal operating schedule and can call out earlier starts or earlier/later endings.
+- Generated announcements automatically calculate the next normal operating day after a grouped event period.
+- Return-to-normal calculation respects configured normal weekdays and skips dates covered by other enabled operations events.
+- Severe-weather Main Showcase priority remains unchanged and still takes precedence over operations announcements.
+- Existing media, sports, Team Celebrations, Employee of the Month, themes, overlays, and API settings remain compatible.

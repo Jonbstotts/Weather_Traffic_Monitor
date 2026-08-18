@@ -14,7 +14,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.concurrent.*;
 
-/** Compact two-team scoreboard used inside a standard dashboard card. */
+/**
+ * Legacy live-score panel retained for source compatibility.
+ * v2.6.0 dashboard blocks use SportsSchedulePanel instead.
+ */
 public final class SportsScorePanel extends JPanel {
     private static final ExecutorService LOADER=Executors.newFixedThreadPool(2,r->{
         Thread t=new Thread(r,"sports-logo-loader");t.setDaemon(true);return t;});

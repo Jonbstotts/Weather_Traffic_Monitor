@@ -10,6 +10,10 @@ import java.nio.file.Path;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.YearMonth;
+import java.time.DayOfWeek;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +41,8 @@ public final class SettingsDialog extends JDialog {
             "Automatically switch to holiday / seasonal themes");
     private final JCheckBox themeEffects=new JCheckBox("Enable theme overlay effects");
     private final JComboBox<String> overlayIntensity=new JComboBox<>(new String[]{"LOW","MEDIUM","HIGH"});
+    private final JComboBox<String> overlayPerformanceMode=new JComboBox<>(
+            new String[]{"AUTOMATIC","HIGH_QUALITY","BALANCED","PERFORMANCE"});
     private final JCheckBox radar=new JCheckBox("Show radar layer");
     private final JCheckBox traffic=new JCheckBox("Show traffic layer");
     private final JCheckBox alertMap=new JCheckBox("Show severe-weather polygons on map");
@@ -61,7 +67,7 @@ public final class SettingsDialog extends JDialog {
     private final JComboBox<String> sportsProvider=new JComboBox<>(new String[]{"TheSportsDB"});
     private final JPasswordField sportsKey=new JPasswordField();
     private final JCheckBox sportsPremium=new JCheckBox(
-            "Use TheSportsDB Premium live scores (requires premium API key)");
+            "Use TheSportsDB Premium access for enhanced team search (if available)");
     private final JTextField nwsUserAgent=new JTextField();
     private final JTextField mediaDir=new JTextField();
 
@@ -82,7 +88,7 @@ public final class SettingsDialog extends JDialog {
     private final JComboBox<Integer> alertRefresh =
             new JComboBox<>(new Integer[]{1,2,5,10,15});
     private final JComboBox<Integer> sportsRefresh =
-            new JComboBox<>(new Integer[]{2,5,10,15,30,60});
+            new JComboBox<>(new Integer[]{15,30,60,120,240});
 
     private final DefaultTableModel locationModel = new DefaultTableModel(
             new Object[]{"Pinned location","Latitude","Longitude"},0);
@@ -99,18 +105,47 @@ public final class SettingsDialog extends JDialog {
     private final JTable sportsTable = new JTable(sportsModel);
 
     private final JCheckBox celebrationsEnabled=new JCheckBox(
-            "Automatically add today's birthday / anniversary slides to Main Showcase");
+            "Automatically add enabled team-recognition slides to Main Showcase");
     private final JTextField celebrationMediaDir=new JTextField();
+    private final JLabel employeeOfMonthStatus=new JLabel();
+    private boolean updatingEmployeeOfMonthSelection=false;
+
     private final DefaultTableModel celebrationModel=new DefaultTableModel(
             new Object[]{
                     "Name","Birthday (MM-DD)","Hire Date (YYYY-MM-DD)","Photo path",
-                    "Birthday","Anniversary","Confetti","Enabled"
+                    "Birthday","Anniversary","Employee of Month","Confetti","Enabled"
             },0){
         @Override public Class<?> getColumnClass(int column){
             return column>=4?Boolean.class:String.class;
         }
     };
     private final JTable celebrationTable=new JTable(celebrationModel);
+
+    private final JCheckBox operationsAnnouncementsEnabled=new JCheckBox(
+            "Automatically add Operations Calendar announcements to Main Showcase");
+    private final JComboBox<Integer> operationsDefaultLeadDays=
+            new JComboBox<>(new Integer[]{3,7,14,21,30,45});
+    private final JTextField normalOperatingStart=new JTextField();
+    private final JTextField normalOperatingEnd=new JTextField();
+
+    private final JCheckBox normalMon=new JCheckBox("Mon");
+    private final JCheckBox normalTue=new JCheckBox("Tue");
+    private final JCheckBox normalWed=new JCheckBox("Wed");
+    private final JCheckBox normalThu=new JCheckBox("Thu");
+    private final JCheckBox normalFri=new JCheckBox("Fri");
+    private final JCheckBox normalSat=new JCheckBox("Sat");
+    private final JCheckBox normalSun=new JCheckBox("Sun");
+
+    private final DefaultTableModel operationModel=new DefaultTableModel(
+            new Object[]{
+                    "Event / Holiday","Start Date","End Date","Operation Type",
+                    "Start Time","End Time","Lead Days","Enabled"
+            },0){
+        @Override public Class<?> getColumnClass(int column){
+            return column==7?Boolean.class:Object.class;
+        }
+    };
+    private final JTable operationTable=new JTable(operationModel);
 
     private final JComboBox<Integer> blockCount =
             new JComboBox<>(new Integer[]{6,8,10,12});
@@ -130,17 +165,23 @@ public final class SettingsDialog extends JDialog {
         this.onSave=onSave;
         this.originalTheme=AppTheme.fromId(cfg.themeId);
 
-        setSize(980,790);
         setMinimumSize(new Dimension(860,650));
-        setLocationRelativeTo(owner);
         setLayout(new BorderLayout());
 
         JTabbedPane tabs=new JTabbedPane();
+
+        /*
+         * Settings has grown into a multi-module administration screen.
+         * SCROLL_TAB_LAYOUT keeps every settings category reachable even when
+         * the display is too narrow to show all tab headers at once.
+         */
+        tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         tabs.addTab("General",general());
         tabs.addTab("Pinned Locations",locations());
         tabs.addTab("Routes",routes());
         tabs.addTab("Sports",sports());
         tabs.addTab("Team Celebrations",celebrations());
+        tabs.addTab("Operations Calendar",operationsCalendar());
         tabs.addTab("Dashboard Blocks",widgets());
         tabs.addTab("Main Showcase",showcase());
         tabs.addTab("API Providers",apiProviders());
@@ -150,11 +191,68 @@ public final class SettingsDialog extends JDialog {
         add(tabs,BorderLayout.CENTER);
         add(buttons(),BorderLayout.SOUTH);
 
+        /*
+         * Choose the initial dialog size from the actual usable monitor area.
+         * Large displays open wide enough to expose the full navigation row;
+         * smaller monitors remain safely within their work area and rely on
+         * the scrollable tab header instead of clipping categories.
+         */
+        applyResponsiveWindowSize(owner,tabs);
+
         automaticSevereWeather.addActionListener(e->updateAutomaticSevereControls());
 
         loadValues();
+        installEmployeeOfMonthSelectionGuard();
+        normalizeEmployeeOfMonthSelection();
+        updateEmployeeOfMonthStatus();
+        installOperationTypeBehavior();
         updateAutomaticSevereControls();
         applySettingsTheme((AppTheme)themeSelector.getSelectedItem());
+    }
+
+    /**
+     * Sizes Settings to the current monitor rather than a fixed 980px width.
+     *
+     * The width attempts to accommodate the full tab strip when practical,
+     * while respecting the monitor's usable work area (menu bar/dock/taskbar).
+     */
+    private void applyResponsiveWindowSize(JFrame owner,JTabbedPane tabs){
+        GraphicsConfiguration gc=owner!=null
+                ?owner.getGraphicsConfiguration()
+                :getGraphicsConfiguration();
+
+        Rectangle screen=gc!=null
+                ?new Rectangle(gc.getBounds())
+                :GraphicsEnvironment.getLocalGraphicsEnvironment()
+                        .getMaximumWindowBounds();
+
+        Insets insets=gc!=null
+                ?Toolkit.getDefaultToolkit().getScreenInsets(gc)
+                :new Insets(0,0,0,0);
+
+        int usableX=screen.x+insets.left;
+        int usableY=screen.y+insets.top;
+        int usableW=Math.max(900,screen.width-insets.left-insets.right);
+        int usableH=Math.max(680,screen.height-insets.top-insets.bottom);
+
+        /*
+         * 1320px comfortably fits the current ten categories on typical
+         * desktop font metrics. Preferred tab width is also considered so
+         * future categories naturally influence the initial size.
+         */
+        int desiredW=Math.max(1180,Math.min(1500,tabs.getPreferredSize().width+80));
+        int desiredH=840;
+
+        int width=Math.min(desiredW,(int)(usableW*.94));
+        int height=Math.min(desiredH,(int)(usableH*.92));
+
+        width=Math.max(Math.min(860,usableW),width);
+        height=Math.max(Math.min(650,usableH),height);
+
+        int x=usableX+Math.max(0,(usableW-width)/2);
+        int y=usableY+Math.max(0,(usableH-height)/2);
+
+        setBounds(x,y,width,height);
     }
 
     private JPanel general(){
@@ -179,6 +277,14 @@ public final class SettingsDialog extends JDialog {
 
         addFull(p,y++,themeEffects);
         addRow(p,y++,"Overlay intensity",overlayIntensity);
+        addRow(p,y++,"Overlay performance",overlayPerformanceMode);
+
+        JLabel performanceHelp=new JLabel(
+                "<html><b>Automatic</b> protects animation fluidity by reducing ambient effect "
+              + "density/quality when frame cost rises, while preserving celebration confetti "
+              + "and fireworks priority. High Quality favors visuals; Performance favors "
+              + "Raspberry Pi/older hardware.</html>");
+        addFull(p,y++,performanceHelp);
 
         JLabel overlayHelp=new JLabel(
                 "<html>Holiday themes can add polished effects such as Christmas snow/lights, "
@@ -329,12 +435,12 @@ public final class SettingsDialog extends JDialog {
         outer.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
 
         JTextArea help=new JTextArea(
-                "Create sports selections here; each saved selection becomes a Sports Score choice "
+                "Create sports selections here; each saved selection becomes an Upcoming Schedule choice "
               + "under Dashboard Blocks, just like a configured route. Use Find Team to search the "
               + "configured sports provider and automatically fill Team ID, League ID, Sport, and "
               + "Team Name. TheSportsDB currently reserves general team-name search for premium access, "
               + "so the free key may require manual IDs for teams other than its supported test search. "
-              + "Existing schedule, artwork, and recent-result blocks remain usable with the configured tier." );
+              + "The dashboard now focuses on upcoming scheduled games rather than live scores or recent results." );
         help.setLineWrap(true);help.setWrapStyleWord(true);help.setEditable(false);help.setOpaque(false);
         outer.add(help,BorderLayout.NORTH);
 
@@ -360,8 +466,8 @@ public final class SettingsDialog extends JDialog {
         controls.add(remove);
 
         JPanel refreshRow=new JPanel(new FlowLayout(FlowLayout.LEFT));
-        refreshRow.add(new JLabel("Sports refresh (minutes):"));refreshRow.add(sportsRefresh);
-        refreshRow.add(new JLabel("Use 2 minutes when premium live scores are enabled."));
+        refreshRow.add(new JLabel("Schedule refresh (minutes):"));refreshRow.add(sportsRefresh);
+        refreshRow.add(new JLabel("30–60 minutes is recommended for upcoming schedules."));
         bottom.add(controls);bottom.add(refreshRow);
         outer.add(bottom,BorderLayout.SOUTH);
         return outer;
@@ -456,15 +562,21 @@ public final class SettingsDialog extends JDialog {
         addFull(top,y++,title);
 
         JTextArea help=new JTextArea(
-                "Birthday and work-anniversary records are stored only in the local application "
-              + "configuration. On matching dates, the application generates a temporary Main "
-              + "Showcase slide automatically. Photos are optional; when omitted, initials are used. "
-              + "The celebration animation runs once per generated slide per application session.");
+                "Keep one row per team member and independently enable Birthday, Anniversary, "
+              + "or Employee of the Month recognition. Birthday and anniversary slides appear only "
+              + "on matching dates. Employee of the Month is a single selection for the current "
+              + "month and appears throughout that month. Photos are optional; initials are used "
+              + "when no photo is supplied. Confetti can be enabled or disabled per team member.");
         help.setLineWrap(true);help.setWrapStyleWord(true);
         help.setEditable(false);help.setOpaque(false);
         addFull(top,y++,help);
 
         addFull(top,y++,celebrationsEnabled);
+
+        employeeOfMonthStatus.setFont(
+                employeeOfMonthStatus.getFont().deriveFont(Font.BOLD,13f));
+        addFull(top,y++,employeeOfMonthStatus);
+
         addRow(top,y++,"Celebration photo folder",celebrationMediaDir);
 
         outer.add(top,BorderLayout.NORTH);
@@ -477,14 +589,18 @@ public final class SettingsDialog extends JDialog {
 
         JButton add=new JButton("+ Add Team Member");
         add.addActionListener(e->celebrationModel.addRow(new Object[]{
-                "Team Member","","","",Boolean.TRUE,Boolean.TRUE,Boolean.TRUE,Boolean.TRUE
+                "Team Member","","","",
+                Boolean.TRUE,Boolean.TRUE,Boolean.FALSE,Boolean.TRUE,Boolean.TRUE
         }));
 
         JButton choosePhoto=new JButton("Choose Photo for Selected");
         choosePhoto.addActionListener(e->chooseCelebrationPhoto());
 
         JButton remove=new JButton("Remove selected");
-        remove.addActionListener(e->removeSelected(celebrationTable,celebrationModel));
+        remove.addActionListener(e->{
+            removeSelected(celebrationTable,celebrationModel);
+            updateEmployeeOfMonthStatus();
+        });
 
         controls.add(add);
         controls.add(choosePhoto);
@@ -492,6 +608,84 @@ public final class SettingsDialog extends JDialog {
         outer.add(controls,BorderLayout.SOUTH);
 
         return outer;
+    }
+
+    /**
+     * Employee of the Month behaves like a radio-button selection inside the
+     * table: checking one employee immediately clears every other employee.
+     */
+    private void installEmployeeOfMonthSelectionGuard(){
+        celebrationModel.addTableModelListener(event->{
+            if(updatingEmployeeOfMonthSelection)return;
+
+            // Name edits should immediately update the current-recipient label.
+            if(event.getColumn()==0){
+                updateEmployeeOfMonthStatus();
+                return;
+            }
+
+            if(event.getColumn()!=6)return;
+
+            int row=event.getFirstRow();
+            if(row<0||row>=celebrationModel.getRowCount())return;
+
+            if(Boolean.TRUE.equals(celebrationModel.getValueAt(row,6))){
+                updatingEmployeeOfMonthSelection=true;
+                try{
+                    for(int i=0;i<celebrationModel.getRowCount();i++){
+                        if(i!=row && Boolean.TRUE.equals(
+                                celebrationModel.getValueAt(i,6))){
+                            celebrationModel.setValueAt(Boolean.FALSE,i,6);
+                        }
+                    }
+                }finally{
+                    updatingEmployeeOfMonthSelection=false;
+                }
+            }
+
+            updateEmployeeOfMonthStatus();
+        });
+    }
+
+    /** Ensures old/corrupt configuration can never show multiple recipients. */
+    private void normalizeEmployeeOfMonthSelection(){
+        int selected=-1;
+
+        updatingEmployeeOfMonthSelection=true;
+        try{
+            for(int i=0;i<celebrationModel.getRowCount();i++){
+                if(!Boolean.TRUE.equals(celebrationModel.getValueAt(i,6)))
+                    continue;
+
+                if(selected<0) selected=i;
+                else celebrationModel.setValueAt(Boolean.FALSE,i,6);
+            }
+        }finally{
+            updatingEmployeeOfMonthSelection=false;
+        }
+    }
+
+    private void updateEmployeeOfMonthStatus(){
+        int selected=-1;
+        for(int i=0;i<celebrationModel.getRowCount();i++){
+            if(Boolean.TRUE.equals(celebrationModel.getValueAt(i,6))){
+                selected=i;
+                break;
+            }
+        }
+
+        String month=YearMonth.now().format(
+                java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy"));
+
+        if(selected<0){
+            employeeOfMonthStatus.setText(
+                    "Employee of the Month • "+month+": No recipient selected");
+        }else{
+            String name=cell(celebrationModel,selected,0).trim();
+            employeeOfMonthStatus.setText(
+                    "Employee of the Month • "+month+": "
+                  + (name.isBlank()?"Team Member":name));
+        }
     }
 
     private void chooseCelebrationPhoto(){
@@ -542,6 +736,114 @@ public final class SettingsDialog extends JDialog {
                 );
             }
         }
+    }
+
+    private JPanel operationsCalendar(){
+        JPanel outer=new JPanel(new BorderLayout(10,10));
+        outer.setBorder(BorderFactory.createEmptyBorder(16,16,16,16));
+
+        JPanel top=form();
+        int y=0;
+
+        JLabel title=new JLabel("Holiday & Operations Calendar");
+        title.setFont(title.getFont().deriveFont(Font.BOLD,16f));
+        addFull(top,y++,title);
+
+        JTextArea help=new JTextArea(
+                "Use one calendar for Full Closure, Limited Service, and Modified Hours. "
+              + "Start/End Date may be the same for a one-day event or span multiple days. "
+              + "Connected dates are combined automatically into one Main Showcase announcement. "
+              + "Full Closure ignores time fields. Limited Service and Modified Hours require "
+              + "Start/End Time. Leave Lead Days blank or 0 to use the site default.");
+        help.setLineWrap(true);
+        help.setWrapStyleWord(true);
+        help.setEditable(false);
+        help.setOpaque(false);
+        addFull(top,y++,help);
+
+        addFull(top,y++,operationsAnnouncementsEnabled);
+        addRow(top,y++,"Default announcement lead (days)",operationsDefaultLeadDays);
+        addRow(top,y++,"Normal operating start",normalOperatingStart);
+        addRow(top,y++,"Normal operating end",normalOperatingEnd);
+
+        JPanel days=new JPanel(new FlowLayout(FlowLayout.LEFT,8,0));
+        days.setOpaque(false);
+        days.add(normalMon);days.add(normalTue);days.add(normalWed);
+        days.add(normalThu);days.add(normalFri);days.add(normalSat);days.add(normalSun);
+        addRow(top,y++,"Normal operating days",days);
+
+        outer.add(top,BorderLayout.NORTH);
+
+        operationTable.setFillsViewportHeight(true);
+        operationTable.setRowHeight(28);
+
+        JComboBox<OperationType> types=new JComboBox<>(OperationType.values());
+        operationTable.getColumnModel().getColumn(3).setCellEditor(
+                new DefaultCellEditor(types));
+
+        operationTable.getColumnModel().getColumn(0).setPreferredWidth(190);
+        operationTable.getColumnModel().getColumn(1).setPreferredWidth(90);
+        operationTable.getColumnModel().getColumn(2).setPreferredWidth(90);
+        operationTable.getColumnModel().getColumn(3).setPreferredWidth(125);
+        operationTable.getColumnModel().getColumn(4).setPreferredWidth(90);
+        operationTable.getColumnModel().getColumn(5).setPreferredWidth(90);
+        operationTable.getColumnModel().getColumn(6).setPreferredWidth(70);
+
+        outer.add(new JScrollPane(operationTable),BorderLayout.CENTER);
+
+        JPanel controls=new JPanel(new FlowLayout(FlowLayout.LEFT));
+
+        JButton add=new JButton("+ Add Operations Event");
+        add.addActionListener(e->{
+            operationModel.addRow(new Object[]{
+                    "New Operations Event",
+                    LocalDate.now().plusDays(7).toString(),
+                    LocalDate.now().plusDays(7).toString(),
+                    OperationType.MODIFIED_HOURS,
+                    formatTimeForSettings(parseTimeOrDefault(
+                            normalOperatingStart.getText(),LocalTime.of(7,30))),
+                    formatTimeForSettings(parseTimeOrDefault(
+                            normalOperatingEnd.getText(),LocalTime.of(16,0))),
+                    "",
+                    Boolean.TRUE
+            });
+        });
+
+        JButton remove=new JButton("Remove selected");
+        remove.addActionListener(e->removeSelected(operationTable,operationModel));
+
+        controls.add(add);
+        controls.add(remove);
+
+        JLabel note=new JLabel(
+                "Generated slides remove themselves automatically after the final event date.");
+        controls.add(note);
+
+        outer.add(controls,BorderLayout.SOUTH);
+        return outer;
+    }
+
+    private void installOperationTypeBehavior(){
+        operationModel.addTableModelListener(event->{
+            if(event.getColumn()!=3)return;
+            int row=event.getFirstRow();
+            if(row<0||row>=operationModel.getRowCount())return;
+
+            OperationType type=OperationType.from(
+                    String.valueOf(operationModel.getValueAt(row,3)));
+
+            if(type==OperationType.FULL_CLOSURE){
+                operationModel.setValueAt("",row,4);
+                operationModel.setValueAt("",row,5);
+            }else{
+                if(cell(operationModel,row,4).trim().isBlank())
+                    operationModel.setValueAt(
+                            normalOperatingStart.getText().trim(),row,4);
+                if(cell(operationModel,row,5).trim().isBlank())
+                    operationModel.setValueAt(
+                            normalOperatingEnd.getText().trim(),row,5);
+            }
+        });
     }
 
     private JPanel widgets(){
@@ -726,7 +1028,7 @@ public final class SettingsDialog extends JDialog {
         addRow(p,y++,"Weather refresh (minutes)",weatherRefresh);
         addRow(p,y++,"Radar refresh (minutes)",radarRefresh);
         addRow(p,y++,"NWS alert refresh (minutes)",alertRefresh);
-        addRow(p,y++,"Sports refresh (minutes)",sportsRefresh);
+        addRow(p,y++,"Sports schedule refresh (minutes)",sportsRefresh);
 
         JTextArea note=new JTextArea(
                 "Refresh changes take effect immediately after Save & Apply. "
@@ -776,6 +1078,7 @@ public final class SettingsDialog extends JDialog {
         automaticHolidayThemes.setSelected(cfg.automaticHolidayThemes);
         themeEffects.setSelected(cfg.themeOverlayEffects);
         overlayIntensity.setSelectedItem(cfg.overlayIntensity);
+        overlayPerformanceMode.setSelectedItem(cfg.overlayPerformanceMode);
         radar.setSelected(cfg.showRadar);
         traffic.setSelected(cfg.showTraffic);
         alertMap.setSelected(cfg.showAlertsOnMap);
@@ -835,8 +1138,39 @@ public final class SettingsDialog extends JDialog {
                     c.photoPath(),
                     c.showBirthday(),
                     c.showAnniversary(),
+                    c.employeeOfMonth(YearMonth.now()),
                     c.celebrationEffect(),
                     c.enabled()
+            });
+        }
+
+        operationsAnnouncementsEnabled.setSelected(
+                cfg.operationsAnnouncementsEnabled);
+        selectInteger(operationsDefaultLeadDays,cfg.operationsDefaultLeadDays);
+        normalOperatingStart.setText(
+                formatTimeForSettings(cfg.normalOperatingStart));
+        normalOperatingEnd.setText(
+                formatTimeForSettings(cfg.normalOperatingEnd));
+
+        normalMon.setSelected(cfg.normalOperatingDays.contains(DayOfWeek.MONDAY));
+        normalTue.setSelected(cfg.normalOperatingDays.contains(DayOfWeek.TUESDAY));
+        normalWed.setSelected(cfg.normalOperatingDays.contains(DayOfWeek.WEDNESDAY));
+        normalThu.setSelected(cfg.normalOperatingDays.contains(DayOfWeek.THURSDAY));
+        normalFri.setSelected(cfg.normalOperatingDays.contains(DayOfWeek.FRIDAY));
+        normalSat.setSelected(cfg.normalOperatingDays.contains(DayOfWeek.SATURDAY));
+        normalSun.setSelected(cfg.normalOperatingDays.contains(DayOfWeek.SUNDAY));
+
+        operationModel.setRowCount(0);
+        for(OperationEvent event:cfg.operationEvents){
+            operationModel.addRow(new Object[]{
+                    event.name(),
+                    event.startDate().toString(),
+                    event.endDate().toString(),
+                    event.type(),
+                    event.startTime()==null?"":formatTimeForSettings(event.startTime()),
+                    event.endTime()==null?"":formatTimeForSettings(event.endTime()),
+                    event.leadDays()<=0?"":Integer.toString(event.leadDays()),
+                    event.enabled()
             });
         }
 
@@ -915,7 +1249,7 @@ public final class SettingsDialog extends JDialog {
         for(int i=0;i<sportsModel.getRowCount();i++){
             String name=cell(sportsModel,i,0);
             if(!name.isBlank())
-                out.add(new WidgetChoice("SPORTS_"+i,"Sports Score • "+name));
+                out.add(new WidgetChoice("SPORTS_"+i,"Upcoming Schedule • "+name));
         }
         return out;
     }
@@ -1049,6 +1383,7 @@ public final class SettingsDialog extends JDialog {
             stopTableEditing(routeTable);
             stopTableEditing(sportsTable);
             stopTableEditing(celebrationTable);
+            stopTableEditing(operationTable);
 
             cfg.headerText=header.getText().trim();
             cfg.tickerText=ticker.getText().trim();
@@ -1062,6 +1397,8 @@ public final class SettingsDialog extends JDialog {
             cfg.darkMode=selected.dark();
             cfg.themeOverlayEffects=themeEffects.isSelected();
             cfg.overlayIntensity=String.valueOf(overlayIntensity.getSelectedItem());
+            cfg.overlayPerformanceMode=String.valueOf(
+                    overlayPerformanceMode.getSelectedItem());
             cfg.showRadar=radar.isSelected();
             cfg.showTraffic=traffic.isSelected();
             cfg.showAlertsOnMap=alertMap.isSelected();
@@ -1094,6 +1431,34 @@ public final class SettingsDialog extends JDialog {
             cfg.celebrationMediaDirectory=celebrationMediaDir.getText().trim().isBlank()
                     ?ConfigService.appDataDir().resolve("celebrations-media")
                     :Path.of(celebrationMediaDir.getText().trim());
+            cfg.operationsAnnouncementsEnabled=
+                    operationsAnnouncementsEnabled.isSelected();
+            cfg.operationsDefaultLeadDays=
+                    (Integer)operationsDefaultLeadDays.getSelectedItem();
+            cfg.normalOperatingStart=parseTime(
+                    normalOperatingStart.getText(),
+                    "Normal operating start");
+            cfg.normalOperatingEnd=parseTime(
+                    normalOperatingEnd.getText(),
+                    "Normal operating end");
+
+            cfg.normalOperatingDays.clear();
+            if(normalMon.isSelected())cfg.normalOperatingDays.add(DayOfWeek.MONDAY);
+            if(normalTue.isSelected())cfg.normalOperatingDays.add(DayOfWeek.TUESDAY);
+            if(normalWed.isSelected())cfg.normalOperatingDays.add(DayOfWeek.WEDNESDAY);
+            if(normalThu.isSelected())cfg.normalOperatingDays.add(DayOfWeek.THURSDAY);
+            if(normalFri.isSelected())cfg.normalOperatingDays.add(DayOfWeek.FRIDAY);
+            if(normalSat.isSelected())cfg.normalOperatingDays.add(DayOfWeek.SATURDAY);
+            if(normalSun.isSelected())cfg.normalOperatingDays.add(DayOfWeek.SUNDAY);
+
+            if(cfg.normalOperatingDays.isEmpty())
+                throw new IllegalArgumentException(
+                        "Select at least one normal operating day.");
+
+            if(!cfg.normalOperatingEnd.isAfter(cfg.normalOperatingStart))
+                throw new IllegalArgumentException(
+                        "Normal operating end time must be after start time.");
+
 
             cfg.primary=new Location(
                     required(primaryName.getText(),"Primary location name"),
@@ -1154,13 +1519,86 @@ public final class SettingsDialog extends JDialog {
                 String photo=cell(celebrationModel,i,3).trim();
                 boolean birthdayOn=Boolean.TRUE.equals(celebrationModel.getValueAt(i,4));
                 boolean anniversaryOn=Boolean.TRUE.equals(celebrationModel.getValueAt(i,5));
-                boolean confetti=Boolean.TRUE.equals(celebrationModel.getValueAt(i,6));
-                boolean enabled=Boolean.TRUE.equals(celebrationModel.getValueAt(i,7));
+                boolean employeeOfMonth=Boolean.TRUE.equals(
+                        celebrationModel.getValueAt(i,6));
+                boolean confetti=Boolean.TRUE.equals(celebrationModel.getValueAt(i,7));
+                boolean enabled=Boolean.TRUE.equals(celebrationModel.getValueAt(i,8));
+
+                YearMonth recognitionMonth=YearMonth.now();
+                int eomYear=employeeOfMonth?recognitionMonth.getYear():0;
+                int eomMonth=employeeOfMonth?recognitionMonth.getMonthValue():0;
 
                 cfg.celebrations.add(new CelebrationConfig(
                         name,month,day,hireDate,photo,
-                        birthdayOn,anniversaryOn,confetti,enabled
+                        birthdayOn,anniversaryOn,
+                        eomYear,eomMonth,
+                        confetti,enabled
                 ));
+            }
+
+            cfg.operationEvents.clear();
+            for(int i=0;i<operationModel.getRowCount();i++){
+                String name=cell(operationModel,i,0).trim();
+                if(name.isBlank())continue;
+
+                LocalDate start;
+                LocalDate end;
+                try{
+                    start=LocalDate.parse(cell(operationModel,i,1).trim());
+                }catch(Exception ex){
+                    throw new IllegalArgumentException(
+                            name+" start date must use YYYY-MM-DD.");
+                }
+
+                String endValue=cell(operationModel,i,2).trim();
+                try{
+                    end=endValue.isBlank()?start:LocalDate.parse(endValue);
+                }catch(Exception ex){
+                    throw new IllegalArgumentException(
+                            name+" end date must use YYYY-MM-DD.");
+                }
+
+                if(end.isBefore(start))
+                    throw new IllegalArgumentException(
+                            name+" end date cannot be before its start date.");
+
+                OperationType type=OperationType.from(
+                        String.valueOf(operationModel.getValueAt(i,3)));
+
+                LocalTime eventStart=null;
+                LocalTime eventEnd=null;
+
+                if(type!=OperationType.FULL_CLOSURE){
+                    eventStart=parseTime(
+                            cell(operationModel,i,4),
+                            name+" start time");
+                    eventEnd=parseTime(
+                            cell(operationModel,i,5),
+                            name+" end time");
+
+                    if(!eventEnd.isAfter(eventStart))
+                        throw new IllegalArgumentException(
+                                name+" end time must be after start time.");
+                }
+
+                int leadDays=0;
+                String lead=cell(operationModel,i,6).trim();
+                if(!lead.isBlank()){
+                    try{leadDays=Integer.parseInt(lead);}
+                    catch(Exception ex){
+                        throw new IllegalArgumentException(
+                                name+" Lead Days must be a whole number.");
+                    }
+                    if(leadDays<0)
+                        throw new IllegalArgumentException(
+                                name+" Lead Days cannot be negative.");
+                }
+
+                boolean enabled=Boolean.TRUE.equals(
+                        operationModel.getValueAt(i,7));
+
+                cfg.operationEvents.add(new OperationEvent(
+                        name,start,end,type,eventStart,eventEnd,leadDays,enabled));
             }
 
             cfg.sports.clear();
@@ -1228,6 +1666,39 @@ public final class SettingsDialog extends JDialog {
             if(box.getItemAt(i).id().equals("STATUS")){box.setSelectedIndex(i);return;}
     }
 
+
+    private static final DateTimeFormatter SETTINGS_TIME=
+            DateTimeFormatter.ofPattern("h:mm a");
+
+    private static String formatTimeForSettings(LocalTime time){
+        return time==null?"":time.format(SETTINGS_TIME);
+    }
+
+    private static LocalTime parseTime(String value,String field){
+        String text=value==null?"":value.trim().toUpperCase();
+        if(text.isBlank())
+            throw new IllegalArgumentException(field+" is required.");
+
+        DateTimeFormatter[] formats={
+                DateTimeFormatter.ofPattern("h:mm a"),
+                DateTimeFormatter.ofPattern("h:mma"),
+                DateTimeFormatter.ofPattern("H:mm"),
+                DateTimeFormatter.ofPattern("h a")
+        };
+
+        for(DateTimeFormatter format:formats){
+            try{return LocalTime.parse(text,format);}
+            catch(Exception ignored){}
+        }
+
+        throw new IllegalArgumentException(
+                field+" must use a time such as 7:30 AM, 11:00 AM, or 16:00.");
+    }
+
+    private static LocalTime parseTimeOrDefault(String value,LocalTime fallback){
+        try{return parseTime(value,"Time");}
+        catch(Exception ignored){return fallback;}
+    }
 
     private static void selectInteger(JComboBox<Integer> box,int value){
         for(int i=0;i<box.getItemCount();i++){

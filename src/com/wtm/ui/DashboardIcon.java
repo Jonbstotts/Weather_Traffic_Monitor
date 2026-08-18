@@ -106,11 +106,45 @@ public final class DashboardIcon implements Icon {
     }
 
     private void drawWind(Graphics2D g){
+        /*
+         * Classic weather-wind glyph: three horizontal gust lines terminate
+         * in smooth curls, closely matching the familiar meteorological wind
+         * symbol while remaining crisp at dashboard-card sizes.
+         */
         g.setColor(primary);
-        g.draw(new Arc2D.Double(7,7,29,20,205,230,Arc2D.OPEN));
-        g.drawLine(7,21,30,21);
-        g.drawLine(12,30,39,30);
-        g.draw(new Arc2D.Double(28,23,13,13,265,180,Arc2D.OPEN));
+        g.setStroke(new BasicStroke(
+                3.4f,
+                BasicStroke.CAP_ROUND,
+                BasicStroke.JOIN_ROUND
+        ));
+
+        // Upper gust: long line curling upward and back inward.
+        Path2D top=new Path2D.Double();
+        top.moveTo(5,18);
+        top.lineTo(29,18);
+        top.curveTo(35,18,38,14,38,10);
+        top.curveTo(38,6,35,4,31,4);
+        top.curveTo(27,4,25,7,25,10);
+        top.curveTo(25,13,27,14,30,14);
+        g.draw(top);
+
+        // Center gust: longest line with a broad downward-returning curl.
+        Path2D middle=new Path2D.Double();
+        middle.moveTo(3,25);
+        middle.lineTo(36,25);
+        middle.curveTo(42,25,45,21,45,16);
+        middle.curveTo(45,11,42,8,38,8);
+        g.draw(middle);
+
+        // Lower gust: shorter line curling down and back.
+        Path2D bottom=new Path2D.Double();
+        bottom.moveTo(6,32);
+        bottom.lineTo(31,32);
+        bottom.curveTo(36,32,39,35,39,39);
+        bottom.curveTo(39,43,36,45,32,45);
+        bottom.curveTo(28,45,26,42,26,39);
+        bottom.curveTo(26,36,28,35,31,35);
+        g.draw(bottom);
     }
 
     private void drawClock(Graphics2D g){
