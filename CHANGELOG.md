@@ -455,3 +455,16 @@
 - Startup authentication fails closed if login is enabled but the authentication file is unavailable.
 - Added a themed LoginDialog that matches the active application theme.
 - Existing API credentials remain in the separate credentials.properties file; authentication hashes are kept in auth.properties.
+
+## 3.0.1 — Protected API privacy shield
+- Fixed sensitive API Providers/API Usage content remaining readable behind the administrator password dialog.
+- Added ProtectedContentPanel, a reusable security wrapper for protected Settings pages.
+- Locked API tabs now render through a privacy surface before authentication begins.
+- The privacy surface downsamples the protected page, applies two heavy 9×9 blur passes, and then adds a strong opaque theme-colored veil.
+- Added a centered vector padlock/status card explaining that administrator authentication is required.
+- Sensitive provider names, usage values, notes, and credential fields are no longer directly visible behind the modal login prompt.
+- Authentication prompt launch now occurs only after the privacy surface has been scheduled for repaint, preventing a readable protected page from remaining behind the dialog.
+- Successful authentication reveals both API pages for the current Settings session.
+- Re-locking API tabs immediately restores the privacy shield.
+- Cancelling/closing the authentication prompt leaves the content locked and returns to the last allowed Settings tab.
+- Privacy surfaces follow the active application theme.

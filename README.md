@@ -506,3 +506,15 @@ When API Settings Protection is enabled, opening API Providers or API Usage prom
 ### Changing security settings
 
 Once an administrator password exists, changing either protection toggle or changing the password requires the current administrator password. This prevents someone with access to the unlocked dashboard from simply disabling API protection without authenticating.
+
+## Protected API privacy shield in v3.0.1
+
+When API Settings Protection is enabled, API Providers and API Usage are now visually concealed
+before the password dialog opens. The protected content is heavily blurred/downsampled and covered
+by a strong themed privacy veil with a lock indicator.
+
+This closes the visual-information leak where a modal password dialog prevented interaction but
+still allowed someone standing at the display to read provider details or API-usage data behind it.
+
+Successful authentication reveals the real content only for the current Settings session. Re-locking
+or opening a new Settings session restores the privacy shield automatically.

@@ -45,6 +45,9 @@ public final class SettingsDialog extends JDialog {
     private boolean suppressProtectedTabChange=false;
     private int lastAllowedTabIndex=0;
 
+    private ProtectedContentPanel protectedApiProviders;
+    private ProtectedContentPanel protectedApiUsage;
+
     private final JTextField header=new JTextField();
     private final JTextField ticker=new JTextField();
     private final JCheckBox showHeader=new JCheckBox("Show title/header");
@@ -198,8 +201,17 @@ public final class SettingsDialog extends JDialog {
         tabs.addTab("Operations Calendar",operationsCalendar());
         tabs.addTab("Dashboard Blocks",widgets());
         tabs.addTab("Main Showcase",showcase());
-        tabs.addTab("API Providers",apiProviders());
-        tabs.addTab("API Usage",new ApiUsagePanel(cfg));
+
+        /*
+         * Sensitive API pages are never inserted directly into the tabbed pane.
+         * They live behind ProtectedContentPanel so their content is concealed
+         * before authentication rather than merely blocked from interaction.
+         */
+        protectedApiProviders=new ProtectedContentPanel(apiProviders());
+        protectedApiUsage=new ProtectedContentPanel(new ApiUsagePanel(cfg));
+
+        tabs.addTab("API Providers",protectedApiProviders);
+        tabs.addTab("API Usage",protectedApiUsage);
         tabs.addTab("Data & Refresh",data());
 
         installProtectedTabGuard();
@@ -314,6 +326,8 @@ public final class SettingsDialog extends JDialog {
         JButton lockApi=new JButton("Re-lock API tabs for this Settings session");
         lockApi.addActionListener(e->{
             apiUnlockedThisSettingsSession=false;
+            lockProtectedApiContent();
+
             JOptionPane.showMessageDialog(
                     this,
                     "API Providers and API Usage are locked again for this Settings session.",
@@ -354,31 +368,85 @@ public final class SettingsDialog extends JDialog {
                 return;
             }
 
-            if(!cfg.protectApiSettings||apiUnlockedThisSettingsSession){
+            if(!cfg.protectApiSettings){
+                unlockProtectedApiContent();
                 lastAllowedTabIndex=selected;
                 return;
             }
 
-            boolean unlocked=LoginDialog.authenticate(
-                    this,
-                    "Unlock API Settings",
-                    "Enter the administrator password to access API provider credentials and usage information.",
-                    currentSettingsTheme()
-            );
-
-            if(unlocked){
-                apiUnlockedThisSettingsSession=true;
+            if(apiUnlockedThisSettingsSession){
+                unlockProtectedApiContent();
                 lastAllowedTabIndex=selected;
                 return;
             }
 
-            suppressProtectedTabChange=true;
-            try{
-                tabs.setSelectedIndex(Math.max(0,lastAllowedTabIndex));
-            }finally{
-                suppressProtectedTabChange=false;
-            }
+            /*
+             * Lock and paint the privacy surface before opening the modal
+             * password prompt. invokeLater gives Swing one paint cycle so the
+             * sensitive page can never remain readable behind the dialog.
+             */
+            lockProtectedApiContent();
+            refreshProtectedPrivacySurface();
+
+            SwingUtilities.invokeLater(()->promptForProtectedApiTab(selected));
         });
+    }
+
+    private void promptForProtectedApiTab(int selectedIndex){
+        if(apiUnlockedThisSettingsSession)return;
+        if(selectedIndex!=tabs.getSelectedIndex())return;
+
+        boolean unlocked=LoginDialog.authenticate(
+                this,
+                "Unlock API Settings",
+                "Enter the administrator password to access API provider "
+                        +"credentials and usage information.",
+                currentSettingsTheme()
+        );
+
+        if(unlocked){
+            apiUnlockedThisSettingsSession=true;
+            unlockProtectedApiContent();
+            lastAllowedTabIndex=selectedIndex;
+            return;
+        }
+
+        lockProtectedApiContent();
+
+        suppressProtectedTabChange=true;
+        try{
+            tabs.setSelectedIndex(Math.max(0,lastAllowedTabIndex));
+        }finally{
+            suppressProtectedTabChange=false;
+        }
+    }
+
+    private void lockProtectedApiContent(){
+        if(protectedApiProviders!=null)protectedApiProviders.lock();
+        if(protectedApiUsage!=null)protectedApiUsage.lock();
+    }
+
+    private void unlockProtectedApiContent(){
+        if(protectedApiProviders!=null)protectedApiProviders.unlock();
+        if(protectedApiUsage!=null)protectedApiUsage.unlock();
+    }
+
+    private void refreshProtectedPrivacySurface(){
+        if(protectedApiProviders!=null)
+            protectedApiProviders.refreshPrivacySurface();
+        if(protectedApiUsage!=null)
+            protectedApiUsage.refreshPrivacySurface();
+
+        revalidate();
+        repaint();
+    }
+
+    /**
+     * Package-visible theme accessor used by the privacy shield. Keeping this
+     * read-only avoids coupling ProtectedContentPanel to Settings internals.
+     */
+    AppTheme activeThemeForProtectedContent(){
+        return currentSettingsTheme();
     }
 
     /** Validates and commits only password/authentication state. */
@@ -487,6 +555,11 @@ public final class SettingsDialog extends JDialog {
         // Dashboard Block selectors are dynamic, so explicitly include their
         // container in every live-preview theme update.
         ThemeStyler.apply(widgetRows,theme);
+
+        if(protectedApiProviders!=null)
+            protectedApiProviders.refreshPrivacySurface();
+        if(protectedApiUsage!=null)
+            protectedApiUsage.refreshPrivacySurface();
 
         revalidate();
         repaint();
