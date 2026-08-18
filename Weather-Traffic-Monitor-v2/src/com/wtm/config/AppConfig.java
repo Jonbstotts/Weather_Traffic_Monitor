@@ -3,6 +3,7 @@ package com.wtm.config;
 import com.wtm.model.Location;
 import com.wtm.model.RouteConfig;
 import com.wtm.model.SportsConfig;
+import com.wtm.model.CelebrationConfig;
 import java.nio.file.Path;
 import java.util.*;
 
@@ -20,6 +21,13 @@ public final class AppConfig {
      * flag and is synchronized from the chosen theme.
      */
     public String themeId = "DARK";
+
+    /**
+     * When enabled, holiday/seasonal presets temporarily override themeId based
+     * on the current local date. themeId remains the manual fallback.
+     */
+    public boolean automaticHolidayThemes = false;
+
     public boolean darkMode = true;
     public boolean showHeader = true;
     public boolean showTicker = true;
@@ -86,6 +94,23 @@ public final class AppConfig {
     /** Sports block refresh cadence. Two minutes is appropriate for premium live scores. */
     public int sportsRefreshMinutes = 5;
     public Path mediaDirectory = ConfigService.appDataDir().resolve("media");
+
+    /** Optional lightweight decorative overlays tied to themes. */
+    public boolean themeOverlayEffects = true;
+
+    /** LOW, MEDIUM, or HIGH particle density. */
+    public String overlayIntensity = "LOW";
+
+    /** Allow generated birthday/work-anniversary cards in Main Showcase. */
+    public boolean celebrationsEnabled = true;
+
+    /** Directory for optional local employee photos; never part of source code. */
+    public Path celebrationMediaDirectory =
+            ConfigService.appDataDir().resolve("celebrations-media");
+
+    /** Local team-recognition records. */
+    public final List<CelebrationConfig> celebrations = new ArrayList<>();
+
 
     /**
      * Enables the large Main Showcase to cycle between the live map and

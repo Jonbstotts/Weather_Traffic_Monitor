@@ -215,3 +215,118 @@ Built-in presets:
 
 Each preset keeps the same dashboard layout and safety semantics while changing the surrounding
 visual palette. The map automatically selects a compatible light/dark presentation.
+
+## API Usage monitoring in v2.1.0
+Settings > API Usage shows locally tracked request counts and compares them with known provider
+allowances. All requests pass through HttpService, allowing the application to account for its
+own traffic automatically.
+
+The counters represent this installation only. If an API key is shared with another computer,
+the provider's own developer dashboard remains authoritative for total account/key usage.
+
+Current reference limits built into this release:
+- TomTom: 50,000 tile requests/day and 2,500 non-tile requests/day.
+- Open-Meteo Free: 10,000 calls/day.
+- NWS: tracked informationally because no fixed public quota is published.
+- RainViewer: tracked informationally because no fixed public quota is represented.
+- TheSportsDB Free: 30 requests/minute; premium uses the configured premium reference.
+
+## API Usage theme fix in v2.1.1
+The API Usage screen now fully follows the selected application theme, including JTable rows,
+column headers, grid lines, selection colors, viewport background, buttons, and status text.
+This resolves pale text becoming unreadable against Swing's default light table background.
+
+## Universal themes in v2.2.0
+Themes now apply to both the fullscreen dashboard and the complete Settings experience. The
+Settings window previews the selected theme live before it is saved, including tabs, forms,
+tables, buttons, API Usage, Find Location, and Find Team dialogs.
+
+New holiday and seasonal presets:
+- Holiday • Christmas
+- Holiday • Halloween
+- Holiday • Thanksgiving
+- Holiday • Independence Day
+- Holiday • Valentine’s Day
+- Holiday • St. Patrick’s Day
+- Seasonal • Winter Frost
+
+## Settings control alignment fix in v2.2.1
+Theme-aware Settings controls now use a platform-independent combo-box presentation. This removes
+macOS native white interior artifacts and keeps dropdown values, arrows, borders, popup items, and
+form rows consistently aligned across macOS, Windows, and Raspberry Pi OS.
+
+## Team Celebrations & Theme Overlays in v2.3.0
+
+Settings > Team Celebrations can store local recognition records for birthdays and work
+anniversaries. On matching dates the Main Showcase automatically generates a temporary
+recognition slide with the team member's name, optional photo, and completed anniversary years.
+
+Photos selected through Settings are copied into:
+
+`~/.weather-traffic-monitor/celebrations-media`
+
+If no photo is supplied, the slide uses a polished initials-based placeholder.
+
+A celebration slide can trigger a short confetti effect once per application session. Holiday
+themes can also enable lightweight screen overlays through Settings > General:
+Christmas/Winter snowfall, Halloween particles, Thanksgiving leaves, Independence Day sparks,
+Valentine hearts, and St. Patrick's shamrocks. Overlay density can be Low, Medium, or High.
+
+Automatic severe-weather map priority always supersedes decorative content: when AUTO LIVE severe
+weather takes control, celebration/holiday effects are suppressed and the live map remains visible.
+
+## Polished holiday effects in v2.3.1
+
+Holiday overlays now use effect-specific animation rather than one shared particle style:
+
+- Christmas / Winter Frost: drawn six-arm snowflakes with natural sway, rotation, depth, and a subtle frost/crystal treatment around the screen edges.
+- Halloween: multiple translucent rolling fog banks that drift horizontally across the display.
+- Independence Day: rising firework rockets that burst into radial red/blue/white/gold spark patterns with trails and gravity.
+- Thanksgiving, Valentine's Day, and St. Patrick's Day retain their lightweight seasonal particles.
+- Celebration confetti remains a separate one-time recognition effect.
+
+Low / Medium / High intensity continues to control visual density. Severe-weather priority
+suppresses all decorative overlays immediately.
+
+## Holiday overlay refinements in v2.3.2
+
+Halloween now uses broad overlapping rolling-fog layers with slow turbulence and thin wisps instead
+of visible fog blobs. The theme also adds an orange/purple perimeter light string with soft glow and
+subtle independent twinkling.
+
+Thanksgiving now includes three leaf silhouettes (maple-inspired, oak-inspired, and pointed leaves)
+with a wider autumn palette and more varied tumbling/drifting motion.
+
+## Automatic holiday themes and overlay polish in v2.4.0
+
+Settings > General now includes **Automatically switch to holiday / seasonal themes**. When
+enabled, the application temporarily selects an appropriate holiday theme based on the current
+local date while keeping the manually selected theme as the fallback outside holiday windows.
+
+Automatic theme schedule:
+- January 1–31: Winter Frost
+- February 10–14: Valentine's Day
+- March 10–17: St. Patrick's Day
+- July 1–4: Independence Day
+- October 15–31: Halloween
+- Seven days before U.S. Thanksgiving through the following Sunday: Thanksgiving
+- December 1–31: Christmas
+
+The active automatic theme is re-evaluated while the display remains running, so date changes do
+not require a restart.
+
+Overlay refinements:
+- Christmas: snowflakes + frost/crystals + red/green/warm-white perimeter string lights.
+- Halloween: deeper multi-layer rolling fog, full-screen ground haze, continuous wisps, and orange/purple lights.
+- Valentine's Day: glowing gradient hearts with floating petal accents.
+- St. Patrick's Day: dimensional shamrocks with green glow and gold sparkle accents.
+
+## Phone photo orientation fix in v2.4.1
+
+JPEG images from phones/cameras can store their physical pixels sideways and rely on EXIF
+Orientation metadata to tell viewers how to rotate them. Swing/ImageIO does not consistently
+apply that metadata automatically.
+
+v2.4.1 adds an orientation-aware image loader that reads the JPEG EXIF Orientation tag and
+normalizes the pixels before display. Birthday/anniversary photos and Main Showcase JPG/JPEG
+announcement images now automatically handle all standard EXIF rotation/mirroring states.

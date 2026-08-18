@@ -96,6 +96,8 @@ public final class LocationSearchDialog extends JDialog {
         searchButton.addActionListener(e->search());
         query.addActionListener(e->search());
 
+        ThemeStyler.apply(this,Theme.active());
+
         if(!query.getText().trim().isBlank())
             SwingUtilities.invokeLater(this::search);
     }

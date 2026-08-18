@@ -2,6 +2,7 @@ package com.wtm.ui;
 
 import com.wtm.config.AppConfig;
 import com.wtm.map.TileMapPanel;
+import com.wtm.model.CelebrationConfig;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -12,6 +13,10 @@ import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.time.LocalDate;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Configurable large-format content region.
@@ -29,6 +34,11 @@ public final class MainShowcasePanel extends RoundedPanel {
     private final List<String> cardIds=new ArrayList<>();
     private int currentIndex=0;
     private Timer rotationTimer;
+    private Consumer<Boolean> celebrationListener=active->{};
+    private final Set<String> celebratedThisSession=new HashSet<>();
+    private final Set<String> celebrationCardIds=new HashSet<>();
+    private final Set<String> celebrationEffectCardIds=new HashSet<>();
+    private LocalDate builtForDate=LocalDate.now();
 
     public MainShowcasePanel(AppConfig config, TileMapPanel map){
         super(20);
@@ -48,6 +58,14 @@ public final class MainShowcasePanel extends RoundedPanel {
     public void updateConfig(AppConfig newConfig){
         this.config=newConfig;
         rebuild();
+    }
+
+    /**
+     * Called with true when a celebration card is first shown this application
+     * session. DashboardFrame uses this to fire a short confetti overlay.
+     */
+    public void setCelebrationListener(Consumer<Boolean> listener){
+        this.celebrationListener=listener==null?active->{}:listener;
     }
 
     public void setAutomaticSevereWeatherActive(boolean active){
@@ -78,17 +96,47 @@ public final class MainShowcasePanel extends RoundedPanel {
             }
         }
 
+        celebrationCardIds.clear();
+        celebrationEffectCardIds.clear();
+        LocalDate today=LocalDate.now();
+        builtForDate=today;
+        if(config.celebrationsEnabled){
+            int index=0;
+            for(CelebrationConfig c:config.celebrations){
+                boolean birthday=c.birthdayToday(today);
+                boolean anniversary=c.anniversaryToday(today) && c.anniversaryYears(today)>0;
+                if(!birthday&&!anniversary) continue;
+
+                String id="CELEBRATION_"+(index++)+"_"+today;
+                CelebrationSlidePanel slide=new CelebrationSlidePanel(c,birthday,anniversary,today);
+                deck.add(slide,id);
+                cardIds.add(id);
+                celebrationCardIds.add(id);
+                if(c.celebrationEffect()) celebrationEffectCardIds.add(id);
+            }
+        }
+
         cards.show(deck,"MAP");
         updateRotationState();
         revalidate();
         repaint();
     }
 
+    /**
+     * Called periodically by DashboardFrame. This makes birthdays and work
+     * anniversaries appear/disappear correctly even if the display stays
+     * running across midnight for multiple days.
+     */
+    public void refreshDateDrivenContent(){
+        LocalDate today=LocalDate.now();
+        if(!today.equals(builtForDate)) rebuild();
+    }
+
     private void updateRotationState(){
         if(rotationTimer!=null) rotationTimer.stop();
 
         boolean severeLock=automaticSevereWeatherActive && config.severeWeatherMapPriority;
-        boolean rotate=config.mainShowcaseMediaEnabled && cardIds.size()>1 && !severeLock;
+        boolean rotate=cardIds.size()>1 && !severeLock;
 
         if(!rotate){
             if(severeLock) showMap();
@@ -107,7 +155,12 @@ public final class MainShowcasePanel extends RoundedPanel {
         }
         if(cardIds.size()<=1) return;
         currentIndex=(currentIndex+1)%cardIds.size();
-        cards.show(deck,cardIds.get(currentIndex));
+        String id=cardIds.get(currentIndex);
+        cards.show(deck,id);
+
+        if(celebrationCardIds.contains(id) && celebratedThisSession.add(id)){
+            celebrationListener.accept(celebrationEffectCardIds.contains(id));
+        }
     }
 
     private void showMap(){
@@ -138,7 +191,7 @@ public final class MainShowcasePanel extends RoundedPanel {
 
     private JComponent createMediaComponent(Path file){
         try{
-            BufferedImage image=ImageIO.read(file.toFile());
+            BufferedImage image=OrientedImageLoader.load(file);
             if(image==null) return null;
 
             JPanel panel=new JPanel(new BorderLayout());

@@ -3,10 +3,7 @@ package com.wtm.ui;
 import java.awt.*;
 
 /**
- * Complete visual themes for the operations dashboard.
- *
- * Each preset defines surfaces, text, outlines and accent colors while keeping
- * severe-weather danger colors consistent enough for safety recognition.
+ * Complete visual themes for both the dashboard and Settings interfaces.
  */
 public enum AppTheme {
     DARK("DARK","Dark",true,
@@ -47,7 +44,35 @@ public enum AppTheme {
 
     WARM_NEUTRAL("WARM_NEUTRAL","Warm Neutral",false,
             c(242,239,233),c(252,250,246),c(247,243,237),c(211,203,193),
-            c(48,43,38),c(112,102,92),c(154,103,64));
+            c(48,43,38),c(112,102,92),c(154,103,64)),
+
+    CHRISTMAS("CHRISTMAS","Holiday • Christmas",true,
+            c(10,24,18),c(18,43,32),c(25,55,40),c(70,103,82),
+            c(250,248,242),c(191,211,198),c(220,45,55)),
+
+    HALLOWEEN("HALLOWEEN","Holiday • Halloween",true,
+            c(20,13,25),c(37,24,45),c(48,31,57),c(92,65,104),
+            c(248,241,252),c(196,173,207),c(245,132,31)),
+
+    THANKSGIVING("THANKSGIVING","Holiday • Thanksgiving",true,
+            c(28,18,11),c(53,34,19),c(65,42,24),c(108,74,45),
+            c(255,246,232),c(216,186,148),c(205,105,42)),
+
+    INDEPENDENCE("INDEPENDENCE","Holiday • Independence Day",true,
+            c(7,20,44),c(15,39,73),c(22,52,92),c(59,88,128),
+            c(248,251,255),c(177,197,224),c(220,45,55)),
+
+    VALENTINE("VALENTINE","Holiday • Valentine’s Day",false,
+            c(255,242,246),c(255,250,252),c(255,235,242),c(238,191,206),
+            c(74,35,52),c(134,87,105),c(220,64,112)),
+
+    ST_PATRICKS("ST_PATRICKS","Holiday • St. Patrick’s Day",true,
+            c(7,29,20),c(14,53,35),c(20,66,43),c(55,104,76),
+            c(242,252,247),c(166,207,184),c(62,193,112)),
+
+    WINTER_FROST("WINTER_FROST","Seasonal • Winter Frost",false,
+            c(235,244,250),c(248,252,255),c(226,239,248),c(186,209,226),
+            c(31,55,72),c(91,120,140),c(55,143,205));
 
     private final String id;
     private final String display;
@@ -77,9 +102,10 @@ public enum AppTheme {
 
     public static AppTheme fromId(String id){
         if(id!=null){
-            for(AppTheme t:values())
-                if(t.id.equalsIgnoreCase(id) || t.display.equalsIgnoreCase(id))
+            for(AppTheme t:values()){
+                if(t.id.equalsIgnoreCase(id)||t.display.equalsIgnoreCase(id))
                     return t;
+            }
         }
         return DARK;
     }

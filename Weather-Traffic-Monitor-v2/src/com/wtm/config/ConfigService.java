@@ -3,10 +3,12 @@ package com.wtm.config;
 import com.wtm.model.Location;
 import com.wtm.model.RouteConfig;
 import com.wtm.model.SportsConfig;
+import com.wtm.model.CelebrationConfig;
 import com.wtm.ui.AppTheme;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
+import java.time.LocalDate;
 
 /** Loads and saves human-readable .properties configuration in the user's home directory. */
 public final class ConfigService {
@@ -24,6 +26,7 @@ public final class ConfigService {
         try {
             Files.createDirectories(appDataDir());
             Files.createDirectories(cfg.mediaDirectory);
+            Files.createDirectories(cfg.celebrationMediaDirectory);
             Path file = appDataDir().resolve(FILE_NAME);
             if (!Files.exists(file)) {
                 save(cfg);
@@ -36,6 +39,7 @@ public final class ConfigService {
             cfg.darkMode = bool(p, "darkMode", cfg.darkMode);
             String legacyThemeDefault=cfg.darkMode?"DARK":"LIGHT";
             cfg.themeId=p.getProperty("themeId",legacyThemeDefault).trim();
+            cfg.automaticHolidayThemes=bool(p,"automaticHolidayThemes",false);
             AppTheme selectedTheme=AppTheme.fromId(cfg.themeId);
             cfg.themeId=selectedTheme.id();
             cfg.darkMode=selectedTheme.dark();
@@ -69,6 +73,13 @@ public final class ConfigService {
             cfg.mainShowcaseIntervalSeconds = Math.max(5, Math.min(600,
                     integer(p, "mainShowcaseIntervalSeconds", 30)));
             cfg.severeWeatherMapPriority = bool(p, "severeWeatherMapPriority", true);
+            cfg.themeOverlayEffects = bool(p, "themeOverlayEffects", true);
+            cfg.overlayIntensity = p.getProperty("overlayIntensity", "LOW").trim().toUpperCase();
+            cfg.celebrationsEnabled = bool(p, "celebrationsEnabled", true);
+            cfg.celebrationMediaDirectory = Path.of(p.getProperty(
+                    "celebrationMediaDirectory",
+                    cfg.celebrationMediaDirectory.toString()));
+            Files.createDirectories(cfg.celebrationMediaDirectory);
             cfg.visibleWidgetCount = Math.max(6, Math.min(12, integer(p, "visibleWidgetCount", cfg.visibleWidgetCount)));
             cfg.mapWidthPercent = Math.max(55, Math.min(75, integer(p, "mapWidthPercent", cfg.mapWidthPercent)));
             cfg.mediaDirectory = Path.of(p.getProperty("mediaDirectory", cfg.mediaDirectory.toString()));
@@ -109,6 +120,28 @@ public final class ConfigService {
                 ));
             }
 
+            cfg.celebrations.clear();
+            int cc=integer(p,"celebrations.count",0);
+            for(int i=0;i<cc;i++){
+                String prefix="celebration."+i;
+                String hire=p.getProperty(prefix+".hireDate","").trim();
+                LocalDate hireDate=null;
+                if(!hire.isBlank()){
+                    try{hireDate=LocalDate.parse(hire);}catch(Exception ignored){}
+                }
+                cfg.celebrations.add(new CelebrationConfig(
+                        p.getProperty(prefix+".name","Team Member"),
+                        integer(p,prefix+".birthdayMonth",0),
+                        integer(p,prefix+".birthdayDay",0),
+                        hireDate,
+                        p.getProperty(prefix+".photoPath",""),
+                        bool(p,prefix+".showBirthday",true),
+                        bool(p,prefix+".showAnniversary",true),
+                        bool(p,prefix+".celebrationEffect",true),
+                        bool(p,prefix+".enabled",true)
+                ));
+            }
+
             cfg.widgetTypes.clear();
             int wc = integer(p, "widgets.count", 6);
             for (int i = 0; i < wc; i++) cfg.widgetTypes.add(p.getProperty("widget." + i, "STATUS"));
@@ -128,9 +161,11 @@ public final class ConfigService {
         try {
             Files.createDirectories(appDataDir());
             Files.createDirectories(cfg.mediaDirectory);
+            Files.createDirectories(cfg.celebrationMediaDirectory);
             Properties p = new Properties();
             p.setProperty("fullscreen", Boolean.toString(cfg.fullscreen));
             p.setProperty("themeId", cfg.themeId);
+            p.setProperty("automaticHolidayThemes",Boolean.toString(cfg.automaticHolidayThemes));
             p.setProperty("darkMode", Boolean.toString(cfg.darkMode));
             p.setProperty("showHeader", Boolean.toString(cfg.showHeader));
             p.setProperty("showTicker", Boolean.toString(cfg.showTicker));
@@ -143,6 +178,10 @@ public final class ConfigService {
             p.setProperty("mainShowcaseMediaEnabled", Boolean.toString(cfg.mainShowcaseMediaEnabled));
             p.setProperty("mainShowcaseIntervalSeconds", Integer.toString(cfg.mainShowcaseIntervalSeconds));
             p.setProperty("severeWeatherMapPriority", Boolean.toString(cfg.severeWeatherMapPriority));
+            p.setProperty("themeOverlayEffects", Boolean.toString(cfg.themeOverlayEffects));
+            p.setProperty("overlayIntensity", cfg.overlayIntensity);
+            p.setProperty("celebrationsEnabled", Boolean.toString(cfg.celebrationsEnabled));
+            p.setProperty("celebrationMediaDirectory", cfg.celebrationMediaDirectory.toString());
             p.setProperty("headerText", cfg.headerText);
             p.setProperty("tickerText", cfg.tickerText);
             p.setProperty("weatherProvider", cfg.weatherProvider);
@@ -182,6 +221,21 @@ public final class ConfigService {
                 p.setProperty(prefix+".teamId", sport.teamId());
                 p.setProperty(prefix+".teamName", sport.teamName());
                 p.setProperty(prefix+".showLogos", Boolean.toString(sport.showLogos()));
+            }
+
+            p.setProperty("celebrations.count",Integer.toString(cfg.celebrations.size()));
+            for(int i=0;i<cfg.celebrations.size();i++){
+                CelebrationConfig c=cfg.celebrations.get(i);
+                String prefix="celebration."+i;
+                p.setProperty(prefix+".name",c.name()==null?"":c.name());
+                p.setProperty(prefix+".birthdayMonth",Integer.toString(c.birthdayMonth()));
+                p.setProperty(prefix+".birthdayDay",Integer.toString(c.birthdayDay()));
+                p.setProperty(prefix+".hireDate",c.hireDate()==null?"":c.hireDate().toString());
+                p.setProperty(prefix+".photoPath",c.photoPath()==null?"":c.photoPath());
+                p.setProperty(prefix+".showBirthday",Boolean.toString(c.showBirthday()));
+                p.setProperty(prefix+".showAnniversary",Boolean.toString(c.showAnniversary()));
+                p.setProperty(prefix+".celebrationEffect",Boolean.toString(c.celebrationEffect()));
+                p.setProperty(prefix+".enabled",Boolean.toString(c.enabled()));
             }
 
             p.setProperty("widgets.count", Integer.toString(cfg.widgetTypes.size()));

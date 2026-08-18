@@ -1,4 +1,4 @@
-# Weather & Traffic Monitor 1.0
+# Weather & Traffic Monitor
 
 A fullscreen workplace dashboard for weather, radar, National Weather Service alerts, commute route times, live traffic-flow overlays, and rotating facility announcements.
 

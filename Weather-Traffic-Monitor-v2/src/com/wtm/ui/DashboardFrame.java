@@ -57,6 +57,7 @@ public final class DashboardFrame extends JFrame {
 
     private TileMapPanel map;
     private MainShowcasePanel mainShowcase;
+    private OverlayEffectsPanel overlayEffects;
     private JPanel root, headerPanel, forecastStrip, sidePanel, tickerPanel, severePanel;
     private JLabel headerLabel, clockLabel, tickerLabel, severeLabel;
     private int tickerX=0;
@@ -68,6 +69,7 @@ public final class DashboardFrame extends JFrame {
     private volatile RadarFrame radarFrame;
     private volatile Instant lastSuccess;
     private final Map<Integer,Integer> mediaIndex = new ConcurrentHashMap<>();
+    private String appliedRuntimeThemeId="";
 
     public DashboardFrame(AppConfig config){
         super("Weather & Traffic Monitor"); this.config=config;
@@ -75,12 +77,24 @@ public final class DashboardFrame extends JFrame {
         setMinimumSize(new Dimension(1200,700));
         setSize(1600,900); setLocationRelativeTo(null);
         tickerTimer=new javax.swing.Timer(30,e->advanceTicker());
+
+        overlayEffects=new OverlayEffectsPanel();
+        setGlassPane(overlayEffects);
+        overlayEffects.setVisible(true);
+
         buildUi();
         addKeyListener(new KeyAdapter(){@Override public void keyPressed(KeyEvent e){if(e.getKeyCode()==KeyEvent.VK_F11)toggleFullscreen(); if(e.getKeyCode()==KeyEvent.VK_ESCAPE && !config.fullscreen)setExtendedState(JFrame.NORMAL);}});
         startRefreshers();
     }
 
     private void buildUi(){
+        // Resolve the saved manual theme against optional date-driven holiday
+        // switching before constructing any themed component.
+        AppTheme runtimeTheme=effectiveTheme();
+        Theme.setActive(runtimeTheme.id());
+        config.darkMode=runtimeTheme.dark();
+        appliedRuntimeThemeId=runtimeTheme.id();
+
         getContentPane().removeAll();
         final int gap=14;
         root=new JPanel(new BorderLayout(gap,gap));
@@ -103,7 +117,21 @@ public final class DashboardFrame extends JFrame {
 
         map=new TileMapPanel(config,http);
         mainShowcase=new MainShowcasePanel(config,map);
+        mainShowcase.setCelebrationListener(active->{
+            if(active && overlayEffects!=null) overlayEffects.celebrate();
+        });
         mainShowcase.setAutomaticSevereWeatherActive(automaticLiveWeatherActive);
+
+        if(overlayEffects!=null){
+            overlayEffects.configure(
+                    runtimeTheme,
+                    config.themeOverlayEffects,
+                    config.overlayIntensity
+            );
+            overlayEffects.setSevereSuppressed(
+                    automaticLiveWeatherActive && config.severeWeatherMapPriority
+            );
+        }
 
         sidePanel=new JPanel(sideGridLayout());
         sidePanel.setOpaque(false);
@@ -589,6 +617,7 @@ public final class DashboardFrame extends JFrame {
             automaticLiveWeatherActive=true;
             SwingUtilities.invokeLater(()->{
                 if(mainShowcase!=null) mainShowcase.setAutomaticSevereWeatherActive(true);
+                if(overlayEffects!=null) overlayEffects.setSevereSuppressed(config.severeWeatherMapPriority);
                 refreshTickerMessage();
             });
             System.out.println("Automatic severe-weather mode enabled: "+qualifyingSevereAlertName());
@@ -600,6 +629,7 @@ public final class DashboardFrame extends JFrame {
             automaticLiveWeatherActive=false;
             SwingUtilities.invokeLater(()->{
                 if(mainShowcase!=null) mainShowcase.setAutomaticSevereWeatherActive(false);
+                if(overlayEffects!=null) overlayEffects.setSevereSuppressed(false);
                 refreshTickerMessage();
             });
             System.out.println("Automatic severe-weather mode cleared; returning to normal refresh rates.");
@@ -723,7 +753,20 @@ public final class DashboardFrame extends JFrame {
         return null;
     }
 
-    private void refreshMedia(){if(sidePanel==null)return;for(Component c:sidePanel.getComponents()){if(!(c instanceof JPanel p))continue;if(!"MEDIA".equals(((JComponent)p).getClientProperty("widgetType")))continue;int slot=(int)((JComponent)p).getClientProperty("slot");JLabel label=findMediaLabel(p);if(label==null)continue;File[] files=config.mediaDirectory.toFile().listFiles(f->{String n=f.getName().toLowerCase();return n.endsWith(".png")||n.endsWith(".jpg")||n.endsWith(".jpeg")||n.endsWith(".gif");});if(files==null||files.length==0){label.setIcon(null);label.setText("Place PNG/JPG/GIF files in\n"+config.mediaDirectory);continue;}Arrays.sort(files);int idx=mediaIndex.merge(slot,1,(a,b)->(a+b)%files.length)%files.length;try{ImageIcon raw=new ImageIcon(files[idx].getAbsolutePath());int w=Math.max(120,p.getWidth()-24),h=Math.max(80,p.getHeight()-45);Image scaled=raw.getImage().getScaledInstance(w,h,Image.SCALE_SMOOTH);label.setIcon(new ImageIcon(scaled));label.setText("");}catch(Exception ignored){}}}
+    private void refreshMedia(){
+        /*
+         * Media refresh already runs regularly on the Swing EDT, making it a
+         * convenient lightweight date-boundary check for automatic holiday
+         * themes. A changed effective theme rebuilds the UI once.
+         */
+        AppTheme nowTheme=effectiveTheme();
+        if(!nowTheme.id().equals(appliedRuntimeThemeId)){
+            buildUi();
+            return;
+        }
+
+        if(mainShowcase!=null) mainShowcase.refreshDateDrivenContent();
+        if(sidePanel==null)return;for(Component c:sidePanel.getComponents()){if(!(c instanceof JPanel p))continue;if(!"MEDIA".equals(((JComponent)p).getClientProperty("widgetType")))continue;int slot=(int)((JComponent)p).getClientProperty("slot");JLabel label=findMediaLabel(p);if(label==null)continue;File[] files=config.mediaDirectory.toFile().listFiles(f->{String n=f.getName().toLowerCase();return n.endsWith(".png")||n.endsWith(".jpg")||n.endsWith(".jpeg")||n.endsWith(".gif");});if(files==null||files.length==0){label.setIcon(null);label.setText("Place PNG/JPG/GIF files in\n"+config.mediaDirectory);continue;}Arrays.sort(files);int idx=mediaIndex.merge(slot,1,(a,b)->(a+b)%files.length)%files.length;try{ImageIcon raw=new ImageIcon(files[idx].getAbsolutePath());int w=Math.max(120,p.getWidth()-24),h=Math.max(80,p.getHeight()-45);Image scaled=raw.getImage().getScaledInstance(w,h,Image.SCALE_SMOOTH);label.setIcon(new ImageIcon(scaled));label.setText("");}catch(Exception ignored){}}}
 
     private void applyConfig(AppConfig c){
         this.config=c;
@@ -741,14 +784,29 @@ public final class DashboardFrame extends JFrame {
         }
 
         buildUi();
+        if(overlayEffects!=null){
+            overlayEffects.configure(
+                    effectiveTheme(),
+                    c.themeOverlayEffects,
+                    c.overlayIntensity
+            );
+            overlayEffects.setSevereSuppressed(
+                    automaticLiveWeatherActive && c.severeWeatherMapPriority
+            );
+        }
         refreshTickerMessage();
         startRefreshers();
 
         if(c.fullscreen) setExtendedState(JFrame.MAXIMIZED_BOTH);
     }
+    private AppTheme effectiveTheme(){
+        return HolidayThemeService.effectiveTheme(config,LocalDate.now());
+    }
+
     private void applyTheme(){
-        Theme.setActive(config.themeId);
-        AppTheme active=Theme.active();
+        AppTheme active=effectiveTheme();
+        Theme.setActive(active.id());
+        appliedRuntimeThemeId=active.id();
 
         /*
          * Keep map rendering synchronized with the selected theme. Dark-family
