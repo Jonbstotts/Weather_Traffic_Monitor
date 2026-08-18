@@ -33,6 +33,12 @@ public final class AppConfig {
     public boolean darkMode = true;
     public boolean showHeader = true;
     public boolean showTicker = true;
+
+    /** Optional administrator login before the dashboard is shown. */
+    public boolean loginRequiredOnStartup = false;
+
+    /** Require administrator authentication before API Providers/API Usage tabs open. */
+    public boolean protectApiSettings = false;
     public boolean showRadar = true;
     public boolean showTraffic = true;
     public boolean showAlertsOnMap = true;

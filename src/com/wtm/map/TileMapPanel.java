@@ -14,6 +14,7 @@ import java.io.*;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.security.MessageDigest;
 import java.time.*;
 import java.util.List;
 import java.util.*;
@@ -28,6 +29,11 @@ import java.util.concurrent.*;
  */
 public final class TileMapPanel extends JPanel {
     private static final int TILE=256;
+
+    /** Prevent long-running/panned displays from retaining every tile forever. */
+    private static final int MAX_MEMORY_TILES=900;
+    private static final int MAX_DISK_TILES=2500;
+    private static final Duration MAX_CACHE_AGE=Duration.ofDays(14);
     private final HttpService http;
     private final ExecutorService loader = Executors.newFixedThreadPool(5, r -> { Thread t=new Thread(r,"map-tile-loader"); t.setDaemon(true); return t; });
     private final Map<String,BufferedImage> memory = new ConcurrentHashMap<>();
@@ -45,7 +51,12 @@ public final class TileMapPanel extends JPanel {
     public TileMapPanel(AppConfig config, HttpService http) {
         this.config=config; this.http=http; this.centerLat=config.primary.latitude(); this.centerLon=config.primary.longitude();
         setOpaque(true); setBackground(new Color(20,24,30));
-        try { Files.createDirectories(cacheDir); } catch (IOException ignored) {}
+        try {
+            Files.createDirectories(cacheDir);
+            cleanupDiskCache();
+        } catch (IOException ignored) {
+            // Cache is an optimization only; map rendering can continue without it.
+        }
         MouseAdapter mouse = new MouseAdapter() {
             @Override public void mousePressed(MouseEvent e){ dragStart=e.getPoint(); dragStartX=GeoUtils.lonToWorldX(centerLon,zoom); dragStartY=GeoUtils.latToWorldY(centerLat,zoom); }
             @Override public void mouseDragged(MouseEvent e){ if(dragStart==null)return; double wx=dragStartX-(e.getX()-dragStart.x), wy=dragStartY-(e.getY()-dragStart.y); centerLon=worldXToLon(wx,zoom); centerLat=worldYToLat(wy,zoom); repaint(); }
@@ -54,7 +65,87 @@ public final class TileMapPanel extends JPanel {
         addMouseListener(mouse); addMouseMotionListener(mouse); addMouseWheelListener(mouse);
     }
 
-    public void updateConfig(AppConfig c){ this.config=c; }
+    public void updateConfig(AppConfig c){
+        this.config=c;
+    }
+
+    /**
+     * Called when Settings rebuilds the dashboard. Older releases left each
+     * discarded map's five tile-loader threads alive for the rest of the
+     * process, so repeated Settings changes could accumulate idle executors.
+     */
+    public void shutdown(){
+        loader.shutdownNow();
+        loading.clear();
+        memory.clear();
+    }
+
+    private void putMemory(String key,BufferedImage image){
+        if(key==null||image==null)return;
+        memory.put(key,image);
+        trimMemoryCache();
+    }
+
+    private void trimMemoryCache(){
+        int excess=memory.size()-MAX_MEMORY_TILES;
+        if(excess<=0)return;
+
+        Iterator<String> keys=memory.keySet().iterator();
+        while(excess>0&&keys.hasNext()){
+            memory.remove(keys.next());
+            excess--;
+        }
+    }
+
+    /**
+     * Java String.hashCode() can collide, which could make two different map
+     * tiles share the same disk file. SHA-256 avoids cross-tile collisions and
+     * also keeps provider keys/URLs out of cache filenames.
+     */
+    private Path cacheFile(String key){
+        try{
+            MessageDigest digest=MessageDigest.getInstance("SHA-256");
+            byte[] hash=digest.digest(key.getBytes(StandardCharsets.UTF_8));
+
+            StringBuilder name=new StringBuilder(64);
+            for(byte b:hash)
+                name.append(String.format("%02x",b));
+
+            return cacheDir.resolve(name+".png");
+        }catch(Exception ex){
+            // SHA-256 is required by the Java platform; this is defensive only.
+            return cacheDir.resolve(
+                    Integer.toUnsignedString(key.hashCode(),16)+".png");
+        }
+    }
+
+    private void cleanupDiskCache(){
+        try(var stream=Files.list(cacheDir)){
+            List<Path> files=stream
+                    .filter(Files::isRegularFile)
+                    .sorted(Comparator.comparingLong(this::lastModifiedSafe))
+                    .toList();
+
+            Instant cutoff=Instant.now().minus(MAX_CACHE_AGE);
+            int keepFrom=Math.max(0,files.size()-MAX_DISK_TILES);
+
+            for(int i=0;i<files.size();i++){
+                Path file=files.get(i);
+                Instant modified=Instant.ofEpochMilli(lastModifiedSafe(file));
+
+                if(i<keepFrom||modified.isBefore(cutoff)){
+                    try{Files.deleteIfExists(file);}
+                    catch(IOException ignored){}
+                }
+            }
+        }catch(IOException ignored){
+        }
+    }
+
+    private long lastModifiedSafe(Path file){
+        try{return Files.getLastModifiedTime(file).toMillis();}
+        catch(IOException ex){return 0L;}
+    }
     public void centerOnPrimary(){ centerLat=config.primary.latitude(); centerLon=config.primary.longitude(); zoom=9; repaint(); }
     public void setRadarFrame(RadarFrame f){ radarFrame=f; repaint(); }
     public void setAlerts(List<WeatherAlert> a){ alerts=a==null?List.of():List.copyOf(a); repaint(); }
@@ -149,12 +240,12 @@ public final class TileMapPanel extends JPanel {
      */
     private BufferedImage getOrLoadTile(String key, String url, boolean persist) {
         BufferedImage img = memory.get(key);
-        Path file = cacheDir.resolve(Integer.toHexString(key.hashCode()) + ".png");
+        Path file=cacheFile(key);
 
         if (img == null && persist && Files.exists(file)) {
             try {
                 img = ImageIO.read(file.toFile());
-                if (img != null) memory.put(key, img);
+                if (img != null) putMemory(key,img);
             } catch (Exception ignored) {}
         }
 
@@ -164,7 +255,7 @@ public final class TileMapPanel extends JPanel {
                     byte[] data = http.getBytes(url);
                     BufferedImage bi = ImageIO.read(new ByteArrayInputStream(data));
                     if (bi != null) {
-                        memory.put(key, bi);
+                        putMemory(key,bi);
                         if (persist) {
                             try { ImageIO.write(bi, "png", file.toFile()); }
                             catch (Exception ignored) {}
@@ -182,16 +273,18 @@ public final class TileMapPanel extends JPanel {
     }
 
     private void drawTile(Graphics2D g,String url,int x,int y,String namespace){
-        String key=namespace+":"+url; BufferedImage img=memory.get(key);
-        if(img==null){ Path file=cacheDir.resolve(Integer.toHexString(key.hashCode())+".png");
-            if(Files.exists(file)){ try{img=ImageIO.read(file.toFile()); if(img!=null)memory.put(key,img);}catch(Exception ignored){} }
-            if(img==null && loading.add(key)) loader.submit(() -> { try { byte[] data=http.getBytes(url); BufferedImage bi=ImageIO.read(new ByteArrayInputStream(data)); if(bi!=null){memory.put(key,bi); try{ImageIO.write(bi,"png",file.toFile());}catch(Exception ignored){} SwingUtilities.invokeLater(this::repaint);} } catch(Exception ignored){} finally{loading.remove(key);} });
+        String key=namespace+":"+url;
+        BufferedImage img=memory.get(key);
+        if(img==null){
+            Path file=cacheFile(key);
+            if(Files.exists(file)){ try{img=ImageIO.read(file.toFile()); if(img!=null)putMemory(key,img);}catch(Exception ignored){} }
+            if(img==null && loading.add(key)) loader.submit(() -> { try { byte[] data=http.getBytes(url); BufferedImage bi=ImageIO.read(new ByteArrayInputStream(data)); if(bi!=null){putMemory(key,bi); try{ImageIO.write(bi,"png",file.toFile());}catch(Exception ignored){} SwingUtilities.invokeLater(this::repaint);} } catch(Exception ignored){} finally{loading.remove(key);} });
         }
         if(img!=null) g.drawImage(img,x,y,TILE,TILE,null); else { g.setColor(config.darkMode?new Color(28,33,40):new Color(225,228,232)); g.fillRect(x,y,TILE,TILE); }
     }
 
     private void drawTransientTile(Graphics2D g,String url,int x,int y,String key){
-        BufferedImage img=memory.get(key); if(img==null && loading.add(key)) loader.submit(() -> { try { BufferedImage bi=ImageIO.read(new ByteArrayInputStream(http.getBytes(url))); if(bi!=null){memory.put(key,bi); SwingUtilities.invokeLater(this::repaint); scheduleTrafficEviction(key);} } catch(Exception ignored){} finally{loading.remove(key);} });
+        BufferedImage img=memory.get(key); if(img==null && loading.add(key)) loader.submit(() -> { try { BufferedImage bi=ImageIO.read(new ByteArrayInputStream(http.getBytes(url))); if(bi!=null){putMemory(key,bi); SwingUtilities.invokeLater(this::repaint); scheduleTrafficEviction(key);} } catch(Exception ignored){} finally{loading.remove(key);} });
         if(img!=null)g.drawImage(img,x,y,TILE,TILE,null);
     }
     private void scheduleTrafficEviction(String key){ CompletableFuture.delayedExecutor(Math.max(1,config.trafficRefreshMinutes),TimeUnit.MINUTES).execute(() -> memory.remove(key)); }

@@ -240,10 +240,12 @@ public final class MainShowcasePanel extends RoundedPanel {
         try(var stream=Files.list(config.mediaDirectory)){
             return stream.filter(Files::isRegularFile)
                     .filter(this::isSupportedImage)
-                    .sorted(Comparator.comparing(p->p.getFileName().toString().toLowerCase()))
+                    .sorted(Comparator.comparing(
+                            p->p.getFileName().toString().toLowerCase()))
+                    .limit(100)
                     .toList();
         }catch(IOException ex){
-            System.err.println("Main Showcase media scan failed: "+ex.getMessage());
+            System.err.println("Main Showcase media directory could not be scanned.");
             return List.of();
         }
     }
@@ -289,7 +291,10 @@ public final class MainShowcasePanel extends RoundedPanel {
             panel.add(imageView,BorderLayout.CENTER);
             return panel;
         }catch(IOException ex){
-            System.err.println("Unable to load showcase media "+file+": "+ex.getMessage());
+            System.err.println(
+                    "Unable to load showcase media file: "
+                    +file.getFileName()
+            );
             return null;
         }
     }

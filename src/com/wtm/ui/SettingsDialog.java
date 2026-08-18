@@ -2,6 +2,7 @@ package com.wtm.ui;
 
 import com.wtm.config.*;
 import com.wtm.model.*;
+import com.wtm.security.AuthService;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -16,6 +17,7 @@ import java.time.DayOfWeek;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -29,6 +31,19 @@ public final class SettingsDialog extends JDialog {
     private final AppConfig cfg;
     private final Consumer<AppConfig> onSave;
     private final AppTheme originalTheme;
+    private final JTabbedPane tabs=new JTabbedPane();
+
+    private final JCheckBox loginRequiredOnStartup=new JCheckBox(
+            "Require administrator login when the application starts");
+    private final JCheckBox protectApiSettings=new JCheckBox(
+            "Require administrator login to open API Providers and API Usage");
+    private final JPasswordField currentAdminPassword=new JPasswordField();
+    private final JPasswordField newAdminPassword=new JPasswordField();
+    private final JPasswordField confirmAdminPassword=new JPasswordField();
+    private final JLabel passwordStatus=new JLabel();
+    private boolean apiUnlockedThisSettingsSession=false;
+    private boolean suppressProtectedTabChange=false;
+    private int lastAllowedTabIndex=0;
 
     private final JTextField header=new JTextField();
     private final JTextField ticker=new JTextField();
@@ -168,8 +183,6 @@ public final class SettingsDialog extends JDialog {
         setMinimumSize(new Dimension(860,650));
         setLayout(new BorderLayout());
 
-        JTabbedPane tabs=new JTabbedPane();
-
         /*
          * Settings has grown into a multi-module administration screen.
          * SCROLL_TAB_LAYOUT keeps every settings category reachable even when
@@ -177,6 +190,7 @@ public final class SettingsDialog extends JDialog {
          */
         tabs.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
         tabs.addTab("General",general());
+        tabs.addTab("Security",security());
         tabs.addTab("Pinned Locations",locations());
         tabs.addTab("Routes",routes());
         tabs.addTab("Sports",sports());
@@ -187,6 +201,8 @@ public final class SettingsDialog extends JDialog {
         tabs.addTab("API Providers",apiProviders());
         tabs.addTab("API Usage",new ApiUsagePanel(cfg));
         tabs.addTab("Data & Refresh",data());
+
+        installProtectedTabGuard();
 
         add(tabs,BorderLayout.CENTER);
         add(buttons(),BorderLayout.SOUTH);
@@ -255,6 +271,166 @@ public final class SettingsDialog extends JDialog {
         setBounds(x,y,width,height);
     }
 
+    /**
+     * Security is intentionally separated from provider credentials. Password
+     * hashes are managed by AuthService and never enter AppConfig/config.properties.
+     */
+    private JPanel security(){
+        JPanel p=form();
+        int y=0;
+
+        JLabel title=new JLabel("Application Security");
+        title.setFont(title.getFont().deriveFont(Font.BOLD,16f));
+        addFull(p,y++,title);
+
+        JTextArea intro=new JTextArea(
+                "Both protections are optional and use the same local administrator password. "
+              + "Startup Login blocks the dashboard until authentication succeeds. API Settings "
+              + "Protection prompts before API Providers or API Usage can be opened. Passwords "
+              + "are stored only as a salted PBKDF2 hash in a private local auth file.");
+        intro.setLineWrap(true);
+        intro.setWrapStyleWord(true);
+        intro.setEditable(false);
+        intro.setOpaque(false);
+        addFull(p,y++,intro);
+
+        addFull(p,y++,loginRequiredOnStartup);
+        addFull(p,y++,protectApiSettings);
+
+        passwordStatus.setFont(passwordStatus.getFont().deriveFont(Font.BOLD,13f));
+        addFull(p,y++,passwordStatus);
+
+        addRow(p,y++,"Current administrator password",currentAdminPassword);
+        addRow(p,y++,"New administrator password",newAdminPassword);
+        addRow(p,y++,"Confirm new password",confirmAdminPassword);
+
+        JLabel note=new JLabel(
+                "<html>Leave New/Confirm blank to keep the existing password. "
+              + "Changing protection settings or changing an existing password requires the "
+              + "current password. New passwords must contain at least "
+              +AuthService.MIN_PASSWORD_LENGTH+" characters.</html>");
+        addFull(p,y++,note);
+
+        JButton lockApi=new JButton("Re-lock API tabs for this Settings session");
+        lockApi.addActionListener(e->{
+            apiUnlockedThisSettingsSession=false;
+            JOptionPane.showMessageDialog(
+                    this,
+                    "API Providers and API Usage are locked again for this Settings session.",
+                    "API Settings Locked",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        });
+        addFull(p,y++,lockApi);
+
+        return p;
+    }
+
+    private void updatePasswordStatus(){
+        passwordStatus.setText(
+                AuthService.hasPassword()
+                        ?"Administrator password: Configured"
+                        :"Administrator password: Not configured"
+        );
+    }
+
+    /**
+     * API tabs are protected independently from startup login. Successful
+     * authentication unlocks them only until this Settings dialog is closed.
+     */
+    private void installProtectedTabGuard(){
+        tabs.addChangeListener(event->{
+            if(suppressProtectedTabChange)return;
+
+            int selected=tabs.getSelectedIndex();
+            if(selected<0)return;
+
+            String title=tabs.getTitleAt(selected);
+            boolean protectedTab="API Providers".equals(title)
+                    ||"API Usage".equals(title);
+
+            if(!protectedTab){
+                lastAllowedTabIndex=selected;
+                return;
+            }
+
+            if(!cfg.protectApiSettings||apiUnlockedThisSettingsSession){
+                lastAllowedTabIndex=selected;
+                return;
+            }
+
+            boolean unlocked=LoginDialog.authenticate(
+                    this,
+                    "Unlock API Settings",
+                    "Enter the administrator password to access API provider credentials and usage information.",
+                    currentSettingsTheme()
+            );
+
+            if(unlocked){
+                apiUnlockedThisSettingsSession=true;
+                lastAllowedTabIndex=selected;
+                return;
+            }
+
+            suppressProtectedTabChange=true;
+            try{
+                tabs.setSelectedIndex(Math.max(0,lastAllowedTabIndex));
+            }finally{
+                suppressProtectedTabChange=false;
+            }
+        });
+    }
+
+    /** Validates and commits only password/authentication state. */
+    private void applySecurityChanges(){
+        boolean hasPassword=AuthService.hasPassword();
+        boolean togglesChanged=
+                loginRequiredOnStartup.isSelected()!=cfg.loginRequiredOnStartup
+                ||protectApiSettings.isSelected()!=cfg.protectApiSettings;
+
+        char[] current=currentAdminPassword.getPassword();
+        char[] next=newAdminPassword.getPassword();
+        char[] confirm=confirmAdminPassword.getPassword();
+
+        try{
+            boolean passwordChangeRequested=next.length>0||confirm.length>0;
+
+            if(hasPassword&&(togglesChanged||passwordChangeRequested)){
+                if(!AuthService.verify(current))
+                    throw new IllegalArgumentException(
+                            "The current administrator password is required to change security settings."
+                    );
+            }
+
+            if(passwordChangeRequested){
+                if(!Arrays.equals(next,confirm))
+                    throw new IllegalArgumentException(
+                            "New password and confirmation do not match."
+                    );
+
+                AuthService.validateNewPassword(next);
+                AuthService.setPassword(next);
+                hasPassword=true;
+            }
+
+            if((loginRequiredOnStartup.isSelected()
+                    ||protectApiSettings.isSelected())&&!hasPassword){
+                throw new IllegalArgumentException(
+                        "Set an administrator password before enabling login protection."
+                );
+            }
+
+            updatePasswordStatus();
+        }finally{
+            Arrays.fill(current,'\0');
+            Arrays.fill(next,'\0');
+            Arrays.fill(confirm,'\0');
+            currentAdminPassword.setText("");
+            newAdminPassword.setText("");
+            confirmAdminPassword.setText("");
+        }
+    }
+
     private JPanel general(){
         JPanel p=form();
         int y=0;
@@ -307,6 +483,12 @@ public final class SettingsDialog extends JDialog {
     private void applySettingsTheme(AppTheme theme){
         if(theme==null)theme=originalTheme;
         ThemeStyler.apply(this,theme);
+
+        // Dashboard Block selectors are dynamic, so explicitly include their
+        // container in every live-preview theme update.
+        ThemeStyler.apply(widgetRows,theme);
+
+        revalidate();
         repaint();
     }
 
@@ -1073,6 +1255,9 @@ public final class SettingsDialog extends JDialog {
         showHeader.setSelected(cfg.showHeader);
         showTicker.setSelected(cfg.showTicker);
         fullscreen.setSelected(cfg.fullscreen);
+        loginRequiredOnStartup.setSelected(cfg.loginRequiredOnStartup);
+        protectApiSettings.setSelected(cfg.protectApiSettings);
+        updatePasswordStatus();
         themeSelector.setSelectedItem(AppTheme.fromId(cfg.themeId));
         updateThemePreview();
         automaticHolidayThemes.setSelected(cfg.automaticHolidayThemes);
@@ -1188,6 +1373,16 @@ public final class SettingsDialog extends JDialog {
         }
     }
 
+    /**
+     * Returns the theme currently being previewed in Settings. Dynamic controls
+     * created after the initial ThemeStyler pass must use this theme immediately
+     * instead of waiting for another full-dialog theme refresh.
+     */
+    private AppTheme currentSettingsTheme(){
+        AppTheme selected=(AppTheme)themeSelector.getSelectedItem();
+        return selected==null?originalTheme:selected;
+    }
+
     private void rebuildWidgetRows(){
         int count=(Integer)blockCount.getSelectedItem();
         List<String> oldIds=new ArrayList<>();
@@ -1200,8 +1395,19 @@ public final class SettingsDialog extends JDialog {
         widgetBoxes.clear();
         List<WidgetChoice> choices=widgetChoices();
 
+        AppTheme activeTheme=currentSettingsTheme();
+
         for(int i=0;i<count;i++){
-            JComboBox<WidgetChoice> box=new JComboBox<>(choices.toArray(new WidgetChoice[0]));
+            JComboBox<WidgetChoice> box=
+                    new JComboBox<>(choices.toArray(new WidgetChoice[0]));
+
+            /*
+             * Dashboard Block selectors are rebuilt when block count, pinned
+             * locations, routes, or sports selections change. Because these
+             * controls may be created after the dialog-wide theme pass, apply
+             * the same ThemeStyler used by every other Settings combo here.
+             */
+            ThemeStyler.apply(box,activeTheme);
             widgetBoxes.add(box);
 
             GridBagConstraints a=new GridBagConstraints();
@@ -1222,6 +1428,12 @@ public final class SettingsDialog extends JDialog {
         GridBagConstraints filler=new GridBagConstraints();
         filler.gridx=0;filler.gridy=count;filler.gridwidth=2;filler.weighty=1;filler.fill=GridBagConstraints.VERTICAL;
         widgetRows.add(Box.createVerticalGlue(),filler);
+
+        /*
+         * This also themes the newly-created Block labels and keeps the whole
+         * Dashboard Blocks page visually synchronized with live theme changes.
+         */
+        ThemeStyler.apply(widgetRows,activeTheme);
 
         widgetRows.revalidate();
         widgetRows.repaint();
@@ -1385,11 +1597,15 @@ public final class SettingsDialog extends JDialog {
             stopTableEditing(celebrationTable);
             stopTableEditing(operationTable);
 
+            applySecurityChanges();
+
             cfg.headerText=header.getText().trim();
             cfg.tickerText=ticker.getText().trim();
             cfg.showHeader=showHeader.isSelected();
             cfg.showTicker=showTicker.isSelected();
             cfg.fullscreen=fullscreen.isSelected();
+            cfg.loginRequiredOnStartup=loginRequiredOnStartup.isSelected();
+            cfg.protectApiSettings=protectApiSettings.isSelected();
             AppTheme selected=(AppTheme)themeSelector.getSelectedItem();
             if(selected==null) selected=AppTheme.DARK;
             cfg.themeId=selected.id();

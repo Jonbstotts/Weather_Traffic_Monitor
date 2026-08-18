@@ -22,7 +22,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class TheSportsDbService {
     private final HttpService http;
     private final Map<String,String> badgeCache=new ConcurrentHashMap<>();
-    private final Map<String,LiveCache> liveLeagueCache=new ConcurrentHashMap<>();
 
     public TheSportsDbService(HttpService http){ this.http=http; }
 
@@ -159,38 +158,8 @@ public final class TheSportsDbService {
         return upcoming.isEmpty()?unavailable(cfg,false):upcoming.get(0);
     }
 
-    private SportsGame findPremiumLive(SportsConfig cfg,String key) throws Exception {
-        String league=(cfg.leagueId()==null||cfg.leagueId().isBlank())?"all":cfg.leagueId().trim();
-        LiveCache cached=liveLeagueCache.get(league);
-        List<SportsGame> games;
-        if(cached!=null && Duration.between(cached.time(),Instant.now()).getSeconds()<45){
-            games=cached.games();
-        }else{
-            String url="https://www.thesportsdb.com/api/v2/json/livescore/"+enc(league);
-            String json=http.getTextWithHeader(url,"X-API-KEY",key);
-            games=parseEventList(json,"Premium LIVE");
-            liveLeagueCache.put(league,new LiveCache(Instant.now(),games));
-        }
-
-        for(SportsGame g:games){
-            if(teamMatches(cfg,g.homeTeam()) || teamMatches(cfg,g.awayTeam())) return g;
-        }
-        return null;
-    }
-
-    private boolean teamMatches(SportsConfig cfg,String name){
-        if(name==null) return false;
-        return name.equalsIgnoreCase(cfg.teamName())
-                || (!cfg.teamName().isBlank() && name.toLowerCase().contains(cfg.teamName().toLowerCase()));
-    }
-
     private String v1(String key,String endpoint) throws Exception {
         return http.getText("https://www.thesportsdb.com/api/v1/json/"+enc(key)+"/"+endpoint);
-    }
-
-    private SportsGame firstEvent(String json,String mode){
-        List<SportsGame> all=parseEventList(json,mode);
-        return all.isEmpty()?null:all.get(0);
     }
 
     private List<SportsGame> parseEventList(String json,String mode){
@@ -225,18 +194,6 @@ public final class TheSportsDbService {
                 first(e,"strHomeTeamBadge","strHomeTeamLogo","strHomeTeamBadgeUrl"),
                 first(e,"strAwayTeamBadge","strAwayTeamLogo","strAwayTeamBadgeUrl"),
                 live, finished, Instant.now(), mode);
-    }
-
-    private SportsGame chooseRelevant(SportsGame next,SportsGame last){
-        if(next!=null && next.live()) return next;
-        if(last!=null && last.live()) return last;
-
-        if(last!=null && last.finished() && last.startTime()!=null){
-            long hours=Math.abs(Duration.between(last.startTime(),Instant.now()).toHours());
-            if(hours<=8) return last;
-        }
-        if(next!=null) return next;
-        return last;
     }
 
     private SportsGame withBadges(SportsGame game,String key){
@@ -322,5 +279,4 @@ public final class TheSportsDbService {
         return s.contains("FINAL")||s.contains("FINISHED")||s.matches(".*\\b(FT|AOT|AET|PEN|AP)\\b.*");
     }
     private static String enc(String v){ return URLEncoder.encode(v==null?"":v,StandardCharsets.UTF_8); }
-    private record LiveCache(Instant time,List<SportsGame> games){}
 }

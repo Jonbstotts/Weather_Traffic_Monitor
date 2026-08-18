@@ -98,6 +98,15 @@ public final class DashboardFrame extends JFrame {
             mainShowcase=null;
         }
 
+        /*
+         * TileMapPanel owns a fixed worker pool. Dispose the old pool before a
+         * Settings/theme rebuild creates a replacement map.
+         */
+        if(map!=null){
+            map.shutdown();
+            map=null;
+        }
+
         // Resolve the saved manual theme against optional date-driven holiday
         // switching before constructing any themed component.
         AppTheme runtimeTheme=effectiveTheme();
@@ -559,8 +568,38 @@ public final class DashboardFrame extends JFrame {
         }
     }
 
-    private void refreshWeather(){for(Location l:uniqueLocations()){try{WeatherSnapshot w=weatherService.fetch(l,config);weather.put(l.name(),w);lastSuccess=Instant.now();}catch(Exception ex){System.err.println("Weather refresh failed for "+l.name()+": "+ex.getMessage());}}SwingUtilities.invokeLater(()->{updateForecastStrip();updateWidgets();});}
-    private List<Location> uniqueLocations(){LinkedHashMap<String,Location> m=new LinkedHashMap<>();m.put(config.primary.name(),config.primary);for(Location l:config.monitored)m.put(l.name(),l);return new ArrayList<>(m.values());}
+    private void refreshWeather(){
+        for(Location location:uniqueLocations()){
+            try{
+                WeatherSnapshot snapshot=weatherService.fetch(location,config);
+                weather.put(location.name(),snapshot);
+                lastSuccess=Instant.now();
+            }catch(Exception ex){
+                System.err.println(
+                        "Weather refresh failed for "+location.name()+"."
+                );
+            }
+        }
+
+        SwingUtilities.invokeLater(()->{
+            updateForecastStrip();
+            updateWidgets();
+        });
+    }
+
+    /**
+     * Primary + pinned locations, de-duplicated by display name while
+     * preserving the order configured by the site administrator.
+     */
+    private List<Location> uniqueLocations(){
+        LinkedHashMap<String,Location> unique=new LinkedHashMap<>();
+        unique.put(config.primary.name(),config.primary);
+
+        for(Location location:config.monitored)
+            unique.put(location.name(),location);
+
+        return new ArrayList<>(unique.values());
+    }
     private void refreshAlerts(){
         try{
             alerts=alertService.fetch(config.primary,config);
@@ -577,7 +616,7 @@ public final class DashboardFrame extends JFrame {
                 updateWidgets();
             });
         }catch(Exception ex){
-            System.err.println("NWS alerts failed: "+ex.getMessage());
+            System.err.println("NWS alert refresh failed.");
         }
     }
 
@@ -649,10 +688,79 @@ public final class DashboardFrame extends JFrame {
             startRefreshers();
         }
     }
-    private void refreshRadar(){try{radarFrame=radarService.latest();lastSuccess=Instant.now();SwingUtilities.invokeLater(()->map.setRadarFrame(radarFrame));}catch(Exception ex){System.err.println("Radar metadata failed: "+ex.getMessage());}}
-    private void refreshTraffic(){for(int i=0;i<config.routes.size();i++){try{routes.put(i,trafficService.fetchRoute(config.routes.get(i),config.tomTomApiKey));lastSuccess=Instant.now();}catch(Exception ex){routes.put(i,new RouteStatus(config.routes.get(i).name(),-1,-1,0,"UNAVAILABLE",Instant.now()));System.err.println("Route refresh failed: "+ex.getMessage());}}SwingUtilities.invokeLater(this::updateWidgets);}
+    private void refreshRadar(){
+        try{
+            radarFrame=radarService.latest();
+            lastSuccess=Instant.now();
 
-    private void updateSevereBanner(){WeatherAlert critical=alerts.stream().filter(a->"Extreme".equalsIgnoreCase(a.severity())||a.event().toLowerCase().contains("tornado warning")||a.event().toLowerCase().contains("severe thunderstorm warning")).findFirst().orElse(null);if(critical==null){severePanel.setVisible(false);}else{severeLabel.setText("⚠  "+critical.event().toUpperCase()+"  •  "+shorten(critical.headline(),160));severePanel.setVisible(true);}revalidate();}
+            SwingUtilities.invokeLater(()->{
+                if(map!=null)map.setRadarFrame(radarFrame);
+            });
+        }catch(Exception ex){
+            System.err.println("Radar metadata refresh failed.");
+        }
+    }
+
+    private void refreshTraffic(){
+        for(int i=0;i<config.routes.size();i++){
+            RouteConfig route=config.routes.get(i);
+
+            try{
+                routes.put(
+                        i,
+                        trafficService.fetchRoute(
+                                route,
+                                config.tomTomApiKey
+                        )
+                );
+                lastSuccess=Instant.now();
+            }catch(Exception ex){
+                routes.put(
+                        i,
+                        new RouteStatus(
+                                route.name(),
+                                -1,
+                                -1,
+                                0,
+                                "UNAVAILABLE",
+                                Instant.now()
+                        )
+                );
+                System.err.println(
+                        "Route refresh failed for "+route.name()+"."
+                );
+            }
+        }
+
+        SwingUtilities.invokeLater(this::updateWidgets);
+    }
+
+    private void updateSevereBanner(){
+        WeatherAlert critical=alerts.stream()
+                .filter(alert->{
+                    String event=alert.event()==null
+                            ?""
+                            :alert.event().toLowerCase();
+
+                    return "Extreme".equalsIgnoreCase(alert.severity())
+                            ||event.contains("tornado warning")
+                            ||event.contains("severe thunderstorm warning");
+                })
+                .findFirst()
+                .orElse(null);
+
+        if(critical==null){
+            severePanel.setVisible(false);
+        }else{
+            severeLabel.setText(
+                    "⚠  "+critical.event().toUpperCase()
+                    +"  •  "+shorten(critical.headline(),160)
+            );
+            severePanel.setVisible(true);
+        }
+
+        revalidate();
+    }
 
     /**
      * Starts or restarts all repeating data jobs using the current settings.
@@ -678,7 +786,10 @@ public final class DashboardFrame extends JFrame {
                 sportsSchedules.put(i,games);
                 lastSuccess=Instant.now();
             }catch(Exception ex){
-                System.err.println("Sports schedule refresh failed: "+ex.getMessage());
+                System.err.println(
+                        "Sports schedule refresh failed for "
+                        +config.sports.get(i).name()+"."
+                );
             }
         }
 

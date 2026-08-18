@@ -1,13 +1,17 @@
 package com.wtm.ui;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
 import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Iterator;
 
 /**
  * Loads raster images and applies JPEG EXIF Orientation metadata.
@@ -28,11 +32,17 @@ import java.nio.file.Path;
  * 8 = rotate 270 CW
  */
 public final class OrientedImageLoader {
+    private static final long MAX_FILE_BYTES=50L*1024L*1024L;
+    private static final long MAX_PIXELS=40_000_000L;
+    private static final int MAX_DIMENSION=12_000;
+
     private OrientedImageLoader(){}
 
     public static BufferedImage load(Path path) throws IOException {
+        validateImageBeforeDecode(path);
+
         BufferedImage image=ImageIO.read(path.toFile());
-        if(image==null) return null;
+        if(image==null)return null;
 
         String name=path.getFileName().toString().toLowerCase();
         if(!name.endsWith(".jpg") && !name.endsWith(".jpeg"))
@@ -40,6 +50,49 @@ public final class OrientedImageLoader {
 
         int orientation=readExifOrientation(path);
         return applyOrientation(image,orientation);
+    }
+
+
+
+    /**
+     * Reads only image metadata first so an accidentally enormous/corrupt local
+     * announcement image cannot force an unreasonable allocation during decode.
+     */
+    private static void validateImageBeforeDecode(Path path) throws IOException {
+        if(path==null||!Files.isRegularFile(path)||!Files.isReadable(path))
+            throw new IOException("Image file is not readable.");
+
+        long size=Files.size(path);
+        if(size<=0||size>MAX_FILE_BYTES)
+            throw new IOException("Image file size is outside the permitted range.");
+
+        try(ImageInputStream input=ImageIO.createImageInputStream(path.toFile())){
+            if(input==null)
+                throw new IOException("Unable to inspect image.");
+
+            Iterator<ImageReader> readers=ImageIO.getImageReaders(input);
+            if(!readers.hasNext())
+                throw new IOException("Unsupported image format.");
+
+            ImageReader reader=readers.next();
+            try{
+                reader.setInput(input,true,true);
+                int width=reader.getWidth(0);
+                int height=reader.getHeight(0);
+
+                long pixels=(long)width*(long)height;
+                if(width<=0||height<=0
+                        ||width>MAX_DIMENSION
+                        ||height>MAX_DIMENSION
+                        ||pixels>MAX_PIXELS){
+                    throw new IOException(
+                            "Image dimensions exceed the permitted display-media limit."
+                    );
+                }
+            }finally{
+                reader.dispose();
+            }
+        }
     }
 
     static int readExifOrientation(Path path){

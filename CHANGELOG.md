@@ -399,3 +399,59 @@
 - Return-to-normal calculation respects configured normal weekdays and skips dates covered by other enabled operations events.
 - Severe-weather Main Showcase priority remains unchanged and still takes precedence over operations announcements.
 - Existing media, sports, Team Celebrations, Employee of the Month, themes, overlays, and API settings remain compatible.
+
+## 2.8.1
+- Multi-day Operations Calendar entries now render as one visual block per calendar day.
+- Each block's large colored left badge prominently displays the weekday plus the operation type.
+- A Monday-Friday Modified Hours range therefore displays Monday, Tuesday, Wednesday, Thursday, and Friday as separate blocks without duplicate calendar records.
+- Past daily blocks are automatically removed as the date range progresses; the current day and future days remain visible.
+- Single-day closures, Limited Service entries, and Modified Hours entries retain the same overall announcement format.
+- The announcement header continues to show the full configured date range and upcoming/in-effect status.
+
+## 2.8.2
+- Fixed Dashboard Blocks dropdowns reverting to native/default white combo-box styling.
+- Root cause: Dashboard Block selectors are dynamically rebuilt after Settings theme styling has already occurred.
+- Every dynamically-created Dashboard Block JComboBox now immediately passes through the same ThemeStyler used by the rest of Settings.
+- Rebuilt Block labels and selectors are re-themed as a complete container after pinned-location, route, sports, or block-count changes.
+- Live theme previews now explicitly re-style the Dashboard Blocks container as well.
+- Dashboard Block selectors now match General, Data & Refresh, API Providers, and other Settings dropdowns across Dark, Light, holiday, and future themes.
+
+## 2.9.0 — Full engineering/security audit
+- Performed a complete source-tree audit focused on 24/7 reliability, Raspberry Pi endurance, credential safety, network input handling, resource lifecycle, cache growth, and maintainability.
+- Hardened HttpService to permit HTTPS endpoints only.
+- Removed full request URLs from HTTP exception messages to prevent API-key disclosure through logs.
+- Added bounded streaming response reads: 2 MiB for API/text responses and 12 MiB for binary images/tiles.
+- Added CR/LF and length validation for custom HTTP header values.
+- Added SecureFiles for atomic properties writes and owner-only POSIX permissions where supported.
+- Configuration, credentials, and API usage history now use atomic replacement instead of direct overwrite.
+- Legacy TomTom credentials are immediately removed from ordinary config.properties after migration.
+- API usage persistence is throttled to reduce SD-card/disk writes; final counters flush at shutdown.
+- Fixed TileMapPanel worker-pool leakage during Settings/dashboard rebuilds.
+- Added bounded in-memory map tile cache and aged/count-limited disk cache maintenance.
+- Changed persistent tile cache filenames from 32-bit String.hashCode to SHA-256.
+- Added local announcement/employee image preflight limits before ImageIO decode.
+- Rewrote MiniJson defensively with malformed-input checks, trailing-content rejection, and nesting-depth protection.
+- Added persisted collection-count bounds when loading configuration.
+- Removed unused legacy SportsScorePanel/live-score code after schedule-tracker migration.
+- Reworked dense dashboard refresh methods for readability and sanitized routine logs.
+- Added SECURITY_AUDIT.md documenting findings, corrections, verification, and residual deployment considerations.
+
+## 3.0.0 — Optional authentication and protected API administration
+- Added a dedicated Settings > Security tab.
+- Added optional administrator login before the dashboard starts.
+- Added independent optional protection for the API Providers and API Usage tabs.
+- Both protections use the same local administrator password for practical kiosk administration.
+- API tabs unlock only for the current Settings session and automatically re-lock when Settings is closed.
+- Added a one-click Re-lock API tabs control inside the Security tab.
+- Security toggles cannot be changed without the current administrator password once a password exists.
+- Changing an existing administrator password also requires the current password.
+- Enabling either protection requires a configured administrator password.
+- Administrator passwords are never stored in plaintext.
+- Added AuthService using PBKDF2WithHmacSHA256, a cryptographically random per-installation salt, 310,000 iterations, and a 256-bit derived key.
+- Authentication metadata is stored separately in private auth.properties using the existing atomic/owner-only SecureFiles path.
+- Password comparison uses MessageDigest.isEqual for constant-time derived-hash comparison.
+- Password character arrays are cleared after use where application code controls their lifetime.
+- Added process-wide failed-login throttling: five failed attempts trigger a 30-second delay that cannot be bypassed simply by closing and reopening the login dialog.
+- Startup authentication fails closed if login is enabled but the authentication file is unavailable.
+- Added a themed LoginDialog that matches the active application theme.
+- Existing API credentials remain in the separate credentials.properties file; authentication hashes are kept in auth.properties.

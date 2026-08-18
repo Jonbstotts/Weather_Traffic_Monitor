@@ -1,6 +1,7 @@
 package com.wtm.usage;
 
 import com.wtm.config.ConfigService;
+import com.wtm.util.SecureFiles;
 
 import java.io.*;
 import java.net.URI;
@@ -12,71 +13,137 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Local request accounting for every external API call made by this application.
+ * Installation-local accounting for outbound provider requests.
  *
- * Important: this is installation-local usage. It cannot see requests made by
- * another device that happens to share the same provider API key.
- *
- * Counts are persisted to api-usage.properties so restarts do not reset usage.
+ * Counts are persisted, but persistence is intentionally throttled. Previous
+ * releases rewrote the properties file on every map tile request, which caused
+ * unnecessary storage I/O on 24/7 installations and was especially undesirable
+ * on Raspberry Pi SD cards.
  */
 public final class ApiUsageTracker {
     private static final ApiUsageTracker INSTANCE=new ApiUsageTracker();
     private static final String FILE="api-usage.properties";
+    private static final long SAVE_INTERVAL_NANOS=
+            Duration.ofSeconds(30).toNanos();
 
     private final Map<String,AtomicLong> counts=new ConcurrentHashMap<>();
+
     private String dayKey=currentDay();
     private String monthKey=currentMonth();
     private String minuteKey=currentMinute();
 
-    private ApiUsageTracker(){ load(); }
+    private boolean dirty=false;
+    private long lastSaveNanos=System.nanoTime();
 
-    public static ApiUsageTracker get(){ return INSTANCE; }
+    private ApiUsageTracker(){
+        load();
+
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(
+                        ()->{
+                            synchronized(this){
+                                saveQuietly(true);
+                            }
+                        },
+                        "api-usage-final-save"
+                )
+        );
+    }
+
+    public static ApiUsageTracker get(){
+        return INSTANCE;
+    }
 
     /**
-     * Records one outbound HTTP request. Classification is domain/path based so
-     * provider services do not need to manually increment counters.
+     * Records one outbound request. Classification is domain/path based so
+     * provider adapters cannot accidentally forget usage accounting.
      */
     public synchronized void record(String url){
         rollPeriodsIfNeeded();
 
         String key=classify(url);
-        if(key==null) return;
+        if(key==null)return;
 
         increment("lifetime."+key);
         increment("day."+dayKey+"."+key);
         increment("month."+monthKey+"."+key);
         increment("minute."+minuteKey+"."+key);
-        saveQuietly();
+
+        dirty=true;
+        saveQuietly(false);
     }
 
-    public synchronized List<ApiUsageRecord> snapshot(boolean openMeteoCustomer, boolean sportsPremium){
+    public synchronized List<ApiUsageRecord> snapshot(
+            boolean openMeteoCustomer,
+            boolean sportsPremium
+    ){
         rollPeriodsIfNeeded();
 
         List<ApiUsageRecord> rows=new ArrayList<>();
 
-        // TomTom's current free allowance is daily under its current pricing model.
-        rows.add(row("TomTom","Traffic / map tiles","TOMTOM_TILE",50_000,"day",
-                "Current TomTom free tile allowance."));
-        rows.add(row("TomTom","Routing / other non-tile","TOMTOM_NON_TILE",2_500,"day",
-                "Current TomTom free non-tile allowance."));
+        rows.add(row(
+                "TomTom",
+                "Traffic / map tiles",
+                "TOMTOM_TILE",
+                50_000,
+                "day",
+                "Configured local reference limit."
+        ));
+        rows.add(row(
+                "TomTom",
+                "Routing / other non-tile",
+                "TOMTOM_NON_TILE",
+                2_500,
+                "day",
+                "Configured local reference limit."
+        ));
 
         if(openMeteoCustomer){
-            rows.add(row("Open-Meteo","Weather / geocoding","OPEN_METEO",-1,"day",
-                    "Customer API: no fixed daily limit published for the customer endpoint."));
+            rows.add(row(
+                    "Open-Meteo",
+                    "Weather / geocoding",
+                    "OPEN_METEO",
+                    -1,
+                    "day",
+                    "Customer endpoint usage is tracked locally."
+            ));
         }else{
-            rows.add(row("Open-Meteo","Weather / geocoding","OPEN_METEO",10_000,"day",
-                    "Free non-commercial allowance."));
+            rows.add(row(
+                    "Open-Meteo",
+                    "Weather / geocoding",
+                    "OPEN_METEO",
+                    10_000,
+                    "day",
+                    "Free-tier reference used by this installation."
+            ));
         }
 
-        rows.add(row("National Weather Service","Alerts / weather.gov","NWS",-1,"day",
-                "No public fixed quota; NWS recommends alert requests no more often than every 30 seconds."));
+        rows.add(row(
+                "National Weather Service",
+                "Alerts / weather.gov",
+                "NWS",
+                -1,
+                "day",
+                "Tracked locally; no fixed quota is enforced by the application."
+        ));
 
-        rows.add(row("RainViewer","Radar metadata / tiles","RAINVIEWER",-1,"day",
-                "No fixed public quota represented here; requests are tracked locally."));
+        rows.add(row(
+                "RainViewer",
+                "Radar metadata / tiles",
+                "RAINVIEWER",
+                -1,
+                "day",
+                "Tracked locally."
+        ));
 
-        rows.add(row("TheSportsDB","Sports API","SPORTSDB",
-                sportsPremium?100:30,"minute",
-                sportsPremium?"Premium request-rate reference.":"Free request-rate reference."));
+        rows.add(row(
+                "TheSportsDB",
+                "Sports API",
+                "SPORTSDB",
+                sportsPremium?100:30,
+                "minute",
+                "Local request-rate reference."
+        ));
 
         return rows;
     }
@@ -90,36 +157,50 @@ public final class ApiUsageTracker {
         dayKey=currentDay();
         monthKey=currentMonth();
         minuteKey=currentMinute();
-        saveQuietly();
+        dirty=true;
+        saveQuietly(true);
     }
 
     private ApiUsageRecord row(
-            String provider,String category,String key,long limit,String period,String note
+            String provider,
+            String category,
+            String key,
+            long limit,
+            String period,
+            String note
     ){
         long used=switch(period){
             case "minute" -> value("minute."+minuteKey+"."+key);
             case "month" -> value("month."+monthKey+"."+key);
             default -> value("day."+dayKey+"."+key);
         };
-        return new ApiUsageRecord(provider,category,used,limit,period,note);
+
+        return new ApiUsageRecord(
+                provider,category,used,limit,period,note);
     }
 
     private String classify(String url){
         try{
             URI uri=URI.create(url);
-            String host=Optional.ofNullable(uri.getHost()).orElse("").toLowerCase();
-            String path=Optional.ofNullable(uri.getPath()).orElse("").toLowerCase();
+            String host=Optional.ofNullable(uri.getHost())
+                    .orElse("")
+                    .toLowerCase(Locale.ROOT);
+            String path=Optional.ofNullable(uri.getPath())
+                    .orElse("")
+                    .toLowerCase(Locale.ROOT);
 
             if(host.contains("tomtom")){
-                if(path.contains("/tile/") || path.contains("/tiles/"))
-                    return "TOMTOM_TILE";
-                return "TOMTOM_NON_TILE";
+                return path.contains("/tile/")||path.contains("/tiles/")
+                        ?"TOMTOM_TILE"
+                        :"TOMTOM_NON_TILE";
             }
-            if(host.contains("open-meteo.com")) return "OPEN_METEO";
-            if(host.contains("weather.gov")) return "NWS";
-            if(host.contains("rainviewer.com")) return "RAINVIEWER";
-            if(host.contains("thesportsdb.com")) return "SPORTSDB";
-        }catch(Exception ignored){}
+            if(host.contains("open-meteo.com"))return "OPEN_METEO";
+            if(host.contains("weather.gov"))return "NWS";
+            if(host.contains("rainviewer.com"))return "RAINVIEWER";
+            if(host.contains("thesportsdb.com"))return "SPORTSDB";
+        }catch(Exception ignored){
+        }
+
         return null;
     }
 
@@ -128,59 +209,91 @@ public final class ApiUsageTracker {
     }
 
     private long value(String key){
-        AtomicLong v=counts.get(key);
-        return v==null?0:v.get();
+        AtomicLong value=counts.get(key);
+        return value==null?0:value.get();
     }
 
     private void rollPeriodsIfNeeded(){
-        String d=currentDay(),m=currentMonth(),min=currentMinute();
-        dayKey=d; monthKey=m; minuteKey=min;
+        dayKey=currentDay();
+        monthKey=currentMonth();
+        minuteKey=currentMinute();
 
-        // Keep the persistence file compact: retain lifetime, current day,
-        // current month and current minute only.
-        counts.keySet().removeIf(k->
-                k.startsWith("day.")&&!k.startsWith("day."+dayKey+".")
-                || k.startsWith("month.")&&!k.startsWith("month."+monthKey+".")
-                || k.startsWith("minute.")&&!k.startsWith("minute."+minuteKey+"."));
+        counts.keySet().removeIf(key->
+                key.startsWith("day.")
+                        &&!key.startsWith("day."+dayKey+".")
+                ||key.startsWith("month.")
+                        &&!key.startsWith("month."+monthKey+".")
+                ||key.startsWith("minute.")
+                        &&!key.startsWith("minute."+minuteKey+".")
+        );
     }
 
     private void load(){
         Path file=ConfigService.appDataDir().resolve(FILE);
-        if(!Files.exists(file)) return;
-        Properties p=new Properties();
-        try(InputStream in=Files.newInputStream(file)){
-            p.load(in);
-            for(String name:p.stringPropertyNames()){
+        if(!Files.exists(file))return;
+
+        Properties properties=new Properties();
+
+        try(InputStream in=new BufferedInputStream(Files.newInputStream(file))){
+            properties.load(in);
+
+            for(String name:properties.stringPropertyNames()){
                 try{
-                    counts.put(name,new AtomicLong(Long.parseLong(p.getProperty(name))));
-                }catch(Exception ignored){}
+                    counts.put(
+                            name,
+                            new AtomicLong(
+                                    Long.parseLong(properties.getProperty(name))
+                            )
+                    );
+                }catch(Exception ignored){
+                }
             }
         }catch(Exception ex){
-            System.err.println("API usage history load failed: "+ex.getMessage());
+            System.err.println("API usage history could not be loaded.");
         }
     }
 
-    private void saveQuietly(){
+    private void saveQuietly(boolean force){
+        if(!dirty)return;
+
+        long now=System.nanoTime();
+        if(!force&&now-lastSaveNanos<SAVE_INTERVAL_NANOS)return;
+
         try{
-            Files.createDirectories(ConfigService.appDataDir());
-            Properties p=new Properties();
-            for(var e:counts.entrySet())
-                p.setProperty(e.getKey(),Long.toString(e.getValue().get()));
-            try(OutputStream out=Files.newOutputStream(ConfigService.appDataDir().resolve(FILE))){
-                p.store(out,"Weather & Traffic Monitor local API request accounting");
+            Properties properties=new Properties();
+
+            for(var entry:counts.entrySet()){
+                properties.setProperty(
+                        entry.getKey(),
+                        Long.toString(entry.getValue().get())
+                );
             }
+
+            SecureFiles.storePropertiesAtomic(
+                    ConfigService.appDataDir().resolve(FILE),
+                    properties,
+                    "Weather & Traffic Monitor local API request accounting"
+            );
+
+            dirty=false;
+            lastSaveNanos=now;
         }catch(Exception ex){
-            System.err.println("API usage history save failed: "+ex.getMessage());
+            // Leave dirty=true so a later request/shutdown can retry.
+            System.err.println("API usage history could not be saved.");
         }
     }
 
     private static String currentDay(){
         return LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
     }
+
     private static String currentMonth(){
         return YearMonth.now().toString().replace("-","");
     }
+
     private static String currentMinute(){
-        return LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmm"));
+        return LocalDateTime.now().format(
+                DateTimeFormatter.ofPattern("yyyyMMddHHmm")
+        );
     }
 }

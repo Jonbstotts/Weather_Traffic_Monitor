@@ -1,4 +1,4 @@
-# Weather & Traffic Monitor
+# Weather & Traffic Monitor 1.0
 
 A fullscreen workplace dashboard for weather, radar, National Weather Service alerts, commute route times, live traffic-flow overlays, and rotating facility announcements.
 
@@ -473,3 +473,36 @@ becomes one Holiday & Operations Schedule slide instead of two separate announce
 A Modified Hours event can span an entire week. The same generated announcement remains active
 through the date range, changes its status wording as the period begins/ends, and disappears after
 the last day.
+
+## v2.9.0 audited production baseline
+
+v2.9.0 is intended as the hardened baseline for the Raspberry Pi / 24×7 deployment. The release
+adds atomic configuration writes, owner-only local data permissions where the operating system
+supports them, HTTPS-only provider traffic, bounded network responses, API-key-safe error handling,
+bounded map caches, corrected map-worker lifecycle management, throttled API-usage persistence,
+defensive JSON parsing, and local media preflight validation.
+
+See `SECURITY_AUDIT.md` in the source package for the full engineering review. The audit materially
+reduces avoidable risk but should not be interpreted as a guarantee that software can never contain
+a vulnerability.
+
+## Optional administrator authentication in v3.0.0
+
+Settings > Security contains two independent controls:
+
+- **Require administrator login when the application starts**
+- **Require administrator login to open API Providers and API Usage**
+
+Both controls are optional. They use one local administrator password so a Raspberry Pi/TV installation does not require account-management infrastructure.
+
+### Password storage
+
+The administrator password itself is never persisted. `AuthService` stores a random salt and a PBKDF2-HMAC-SHA256 derived hash in `auth.properties` under the local application-data directory. The file uses atomic writes and owner-only POSIX permissions where supported.
+
+### API administration
+
+When API Settings Protection is enabled, opening API Providers or API Usage prompts for the administrator password. A successful login unlocks those tabs only for that Settings session. Closing Settings re-locks them automatically.
+
+### Changing security settings
+
+Once an administrator password exists, changing either protection toggle or changing the password requires the current administrator password. This prevents someone with access to the unlocked dashboard from simply disabling API protection without authenticating.

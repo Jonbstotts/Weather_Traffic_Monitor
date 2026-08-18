@@ -7,6 +7,7 @@ import com.wtm.model.CelebrationConfig;
 import com.wtm.model.OperationEvent;
 import com.wtm.model.OperationType;
 import com.wtm.ui.AppTheme;
+import com.wtm.util.SecureFiles;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -28,7 +29,7 @@ public final class ConfigService {
     public static AppConfig load() {
         AppConfig cfg = new AppConfig();
         try {
-            Files.createDirectories(appDataDir());
+            SecureFiles.ensurePrivateDirectory(appDataDir());
             Files.createDirectories(cfg.mediaDirectory);
             Files.createDirectories(cfg.celebrationMediaDirectory);
             Path file = appDataDir().resolve(FILE_NAME);
@@ -49,6 +50,10 @@ public final class ConfigService {
             cfg.darkMode=selectedTheme.dark();
             cfg.showHeader = bool(p, "showHeader", cfg.showHeader);
             cfg.showTicker = bool(p, "showTicker", cfg.showTicker);
+            cfg.loginRequiredOnStartup = bool(
+                    p,"loginRequiredOnStartup",false);
+            cfg.protectApiSettings = bool(
+                    p,"protectApiSettings",false);
             cfg.showRadar = bool(p, "showRadar", cfg.showRadar);
             cfg.showTraffic = bool(p, "showTraffic", cfg.showTraffic);
             cfg.showAlertsOnMap = bool(p, "showAlertsOnMap", cfg.showAlertsOnMap);
@@ -124,14 +129,14 @@ public final class ConfigService {
 
             cfg.primary = readLocation(p, "primary", cfg.primary);
             cfg.monitored.clear();
-            int mc = integer(p, "monitored.count", 3);
+            int mc = safeCount(p,"monitored.count",3,200);
             for (int i = 0; i < mc; i++) {
                 Location fallback = i < 3 ? new AppConfig().monitored.get(i) : cfg.primary;
                 cfg.monitored.add(readLocation(p, "monitored." + i, fallback));
             }
 
             cfg.routes.clear();
-            int rc = integer(p, "routes.count", 3);
+            int rc = safeCount(p,"routes.count",3,200);
             for (int i = 0; i < rc; i++) {
                 String prefix = "route." + i;
                 String name = p.getProperty(prefix + ".name", "Route " + (i + 1));
@@ -140,7 +145,7 @@ public final class ConfigService {
             }
 
             cfg.sports.clear();
-            int sc = integer(p, "sports.count", 2);
+            int sc = safeCount(p,"sports.count",2,100);
             AppConfig defaultsForSports = new AppConfig();
             for (int i = 0; i < sc; i++) {
                 SportsConfig fallback = i < defaultsForSports.sports.size()
@@ -158,7 +163,7 @@ public final class ConfigService {
             }
 
             cfg.celebrations.clear();
-            int cc=integer(p,"celebrations.count",0);
+            int cc=safeCount(p,"celebrations.count",0,500);
             for(int i=0;i<cc;i++){
                 String prefix="celebration."+i;
                 String hire=p.getProperty(prefix+".hireDate","").trim();
@@ -182,7 +187,7 @@ public final class ConfigService {
             }
 
             cfg.operationEvents.clear();
-            int operationCount=integer(p,"operations.count",0);
+            int operationCount=safeCount(p,"operations.count",0,500);
             for(int i=0;i<operationCount;i++){
                 String prefix="operation."+i;
 
@@ -226,23 +231,33 @@ public final class ConfigService {
             }
 
             cfg.widgetTypes.clear();
-            int wc = integer(p, "widgets.count", 6);
+            int wc = safeCount(p,"widgets.count",6,12);
             for (int i = 0; i < wc; i++) cfg.widgetTypes.add(p.getProperty("widget." + i, "STATUS"));
 
             ApiCredentialService.loadInto(cfg);
-            if ((cfg.tomTomApiKey == null || cfg.tomTomApiKey.isBlank()) && !legacyTomTomKey.isBlank()) {
-                cfg.tomTomApiKey = legacyTomTomKey;
+            if((cfg.tomTomApiKey==null||cfg.tomTomApiKey.isBlank())
+                    &&!legacyTomTomKey.isBlank()){
+                cfg.tomTomApiKey=legacyTomTomKey;
                 ApiCredentialService.saveFrom(cfg);
+
+                /*
+                 * Re-save immediately so the legacy plaintext key is removed
+                 * from config.properties instead of waiting for the next manual
+                 * Settings save.
+                 */
+                save(cfg);
             }
         } catch (Exception ex) {
-            System.err.println("Configuration load failed; using defaults: " + ex.getMessage());
+            System.err.println(
+                    "Configuration could not be loaded completely; safe defaults were used."
+            );
         }
         return cfg;
     }
 
     public static void save(AppConfig cfg) {
         try {
-            Files.createDirectories(appDataDir());
+            SecureFiles.ensurePrivateDirectory(appDataDir());
             Files.createDirectories(cfg.mediaDirectory);
             Files.createDirectories(cfg.celebrationMediaDirectory);
             Properties p = new Properties();
@@ -252,6 +267,12 @@ public final class ConfigService {
             p.setProperty("darkMode", Boolean.toString(cfg.darkMode));
             p.setProperty("showHeader", Boolean.toString(cfg.showHeader));
             p.setProperty("showTicker", Boolean.toString(cfg.showTicker));
+            p.setProperty(
+                    "loginRequiredOnStartup",
+                    Boolean.toString(cfg.loginRequiredOnStartup));
+            p.setProperty(
+                    "protectApiSettings",
+                    Boolean.toString(cfg.protectApiSettings));
             p.setProperty("showRadar", Boolean.toString(cfg.showRadar));
             p.setProperty("showTraffic", Boolean.toString(cfg.showTraffic));
             p.setProperty("showAlertsOnMap", Boolean.toString(cfg.showAlertsOnMap));
@@ -369,13 +390,32 @@ public final class ConfigService {
             p.setProperty("widgets.count", Integer.toString(cfg.widgetTypes.size()));
             for (int i = 0; i < cfg.widgetTypes.size(); i++) p.setProperty("widget." + i, cfg.widgetTypes.get(i));
 
-            try (OutputStream out = Files.newOutputStream(appDataDir().resolve(FILE_NAME))) {
-                p.store(out, "Weather & Traffic Monitor configuration");
-            }
+            /*
+             * Write configuration atomically so a power interruption cannot
+             * leave a truncated properties file on a 24/7 Raspberry Pi.
+             * The file also receives owner-only POSIX permissions where
+             * supported because it can contain employee names and local paths.
+             */
+            SecureFiles.storePropertiesAtomic(
+                    appDataDir().resolve(FILE_NAME),
+                    p,
+                    "Weather & Traffic Monitor configuration"
+            );
+
             ApiCredentialService.saveFrom(cfg);
         } catch (IOException ex) {
             throw new RuntimeException("Unable to save configuration", ex);
         }
+    }
+
+    private static int safeCount(
+            Properties properties,
+            String key,
+            int defaultValue,
+            int maximum
+    ){
+        int value=integer(properties,key,defaultValue);
+        return Math.max(0,Math.min(maximum,value));
     }
 
     private static boolean bool(Properties p, String k, boolean d) { return Boolean.parseBoolean(p.getProperty(k, Boolean.toString(d))); }

@@ -58,8 +58,22 @@ public final class OperationsAnnouncementSlidePanel extends JPanel {
         rows.setLayout(new BoxLayout(rows,BoxLayout.Y_AXIS));
 
         for(OperationEvent event:announcement.events()){
-            rows.add(eventRow(config,event));
-            rows.add(Box.createVerticalStrut(10));
+            /*
+             * Multi-day entries are rendered as one block per remaining
+             * calendar day. Past days are intentionally omitted, so a
+             * Monday-Friday temporary schedule naturally shrinks as the week
+             * progresses without requiring separate calendar records.
+             */
+            LocalDate firstVisible=event.startDate().isBefore(today)
+                    ?today
+                    :event.startDate();
+
+            for(LocalDate day=firstVisible;
+                    !day.isAfter(event.endDate());
+                    day=day.plusDays(1)){
+                rows.add(eventRow(config,event,day));
+                rows.add(Box.createVerticalStrut(10));
+            }
         }
 
         JScrollPane scroll=new JScrollPane(rows);
@@ -102,26 +116,44 @@ public final class OperationsAnnouncementSlidePanel extends JPanel {
         add(footer,BorderLayout.SOUTH);
     }
 
-    private static JComponent eventRow(AppConfig config,OperationEvent event){
+    private static JComponent eventRow(
+            AppConfig config,
+            OperationEvent event,
+            LocalDate day
+    ){
         RoundedPanel card=new RoundedPanel(18);
         card.setLayout(new BorderLayout(18,0));
         card.setBackground(Theme.panel2());
         card.putClientProperty("outlineColor",Theme.border());
         card.setBorder(new EmptyBorder(14,18,14,18));
-        card.setMaximumSize(new Dimension(Integer.MAX_VALUE,116));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE,124));
 
-        JLabel badge=new JLabel(event.type().display().toUpperCase(),SwingConstants.CENTER);
+        JPanel badge=new JPanel(new GridLayout(2,1,0,2));
         badge.setOpaque(true);
         badge.setBackground(typeColor(event.type()));
-        badge.setForeground(bestText(typeColor(event.type())));
-        badge.setFont(new Font(Font.SANS_SERIF,Font.BOLD,13));
-        badge.setBorder(new EmptyBorder(8,12,8,12));
-        badge.setPreferredSize(new Dimension(150,42));
+        badge.setBorder(new EmptyBorder(8,10,8,10));
+        badge.setPreferredSize(new Dimension(165,76));
 
-        String date=dateText(event);
+        JLabel dayLabel=new JLabel(
+                day.getDayOfWeek().toString(),
+                SwingConstants.CENTER
+        );
+        dayLabel.setForeground(bestText(typeColor(event.type())));
+        dayLabel.setFont(new Font(Font.SANS_SERIF,Font.BOLD,18));
+
+        JLabel typeLabel=new JLabel(
+                event.type().display().toUpperCase(),
+                SwingConstants.CENTER
+        );
+        typeLabel.setForeground(bestText(typeColor(event.type())));
+        typeLabel.setFont(new Font(Font.SANS_SERIF,Font.BOLD,11));
+
+        badge.add(dayLabel);
+        badge.add(typeLabel);
+
         JLabel main=new JLabel(
                 "<html><b style='font-size:16px'>"+escape(event.name())+"</b>"
-                +"<br>"+escape(date)
+                +"<br>"+escape(day.format(LONG_DATE))
                 +detailsHtml(config,event)
                 +"</html>"
         );
@@ -262,10 +294,6 @@ public final class OperationsAnnouncementSlidePanel extends JPanel {
     private static Color bestText(Color bg){
         double lum=(0.299*bg.getRed()+0.587*bg.getGreen()+0.114*bg.getBlue())/255.0;
         return lum>.62?Color.BLACK:Color.WHITE;
-    }
-
-    private static String dateText(OperationEvent event){
-        return rangeText(event.startDate(),event.endDate());
     }
 
     private static String rangeText(LocalDate start,LocalDate end){

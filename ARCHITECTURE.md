@@ -83,3 +83,17 @@ day while respecting normal weekdays and other operations events.
 ephemeral Main Showcase components; no media file is created or deleted. `MainShowcasePanel`
 rebuilds date-driven content during its existing date-boundary refresh path, which makes notices
 appear, update, and disappear automatically on long-running 24/7 installations.
+
+## v2.9.0 reliability/security baseline
+
+`HttpService` is the single outbound network boundary and now enforces HTTPS, timeout policy,
+bounded streaming responses, header validation, and redacted provider errors.
+
+`SecureFiles` centralizes private-directory handling and atomic properties persistence. Config,
+credentials, and API usage history use this helper.
+
+`TileMapPanel` owns its worker lifecycle explicitly; `DashboardFrame` disposes old map executors
+during UI rebuilds. Tile memory/disk caches are bounded and persistent keys use SHA-256.
+
+`OrientedImageLoader` performs metadata preflight before decoding local showcase/celebration media.
+`MiniJson` treats provider JSON as untrusted external input and enforces a maximum nesting depth.
